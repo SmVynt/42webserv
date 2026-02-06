@@ -1,37 +1,49 @@
-NAME		= webserv
+GREEN			= \033[0;32m
+YELLOW			= \033[0;33m
+RESET			= \033[0m
 
-CXX			= c++
-CXXFLAGS	= -Wall -Wextra -Werror -std=c++17
-RM			= rm -rf
+NAME			= webserv
+CXX				= c++
+CXXCXXFLAGS		= -Wall -Wextra -Werror -std=c++17
+OBJ_DIR			= obj/
+INC_DIR			= includes/
+SRC_DIR			= srcs/
 
-SRCS_DIR	= srcs
-OBJS_DIR	= objs
-INCS_DIR	= includes
+CORE_SRCS	= main.cpp \
+				core/Server.cpp \
+				core/Client.cpp
 
-SRCS		= main.cpp \
-			  Server.cpp \
-			  Config.cpp \
-			  Request.cpp \
-			  Response.cpp \
-			  Client.cpp \
-			  utils.cpp
+PARSER_SRCS	= parser/Config.cpp \
+				parser/Request.cpp
 
-OBJS		= $(addprefix $(OBJS_DIR)/, $(SRCS:.cpp=.o))
+LOGIC_SRCS	= logic/Response.cpp \
+				logic/Methods.cpp
+
+CGI_SRCS	= cgi/CGI.cpp
+
+SRCS		= $(CORE_SRCS) $(PARSER_SRCS) $(LOGIC_SRCS) $(CGI_SRCS) utils.cpp
+
+OBJS		= $(addprefix $(OBJ_DIR), $(SRCS:.cpp=.o))
 
 all: $(NAME)
 
 $(NAME): $(OBJS)
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
+	@echo "$(YELLOW)Linking $(NAME)...$(RESET)"
+	@$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
+	@echo "$(GREEN)Done! $(NAME) created.$(RESET)"
 
-$(OBJS_DIR)/%.o: $(SRCS_DIR)/%.cpp
-	@mkdir -p $(OBJS_DIR)
-	$(CXX) $(CXXFLAGS) -I$(INCS_DIR) -c $< -o $@
+$(OBJ_DIR)%.o: $(SRC_DIR)%.cpp
+	@mkdir -p $(dir $@)
+	@echo "Compiling $<..."
+	@$(CXX) $(CXXFLAGS) -I$(INC_DIR) -c $< -o $@
 
 clean:
-	$(RM) $(OBJS_DIR)
+	@echo "$(YELLOW)Removing object files...$(RESET)"
+	@rm -rf $(OBJ_DIR)
 
 fclean: clean
-	$(RM) $(NAME)
+	@echo "$(YELLOW)Removing binary...$(RESET)"
+	@rm -f $(NAME)
 
 re: fclean all
 
