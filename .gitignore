@@ -1,0 +1,30 @@
+# Compiled Object files
+*.o
+*.obj
+objs/
+
+# Executables
+webserv
+*.out
+*.exe
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Upload directory
+www/uploads/*
+!www/uploads/.gitkeep
+
+# Log files
+*.log
+
+# Test files
+test/
