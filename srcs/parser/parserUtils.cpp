@@ -1,33 +1,37 @@
 #include "Config.hpp"
 
-void printConfig(const std::vector<ServerConfig>& servers) {
+void printConfig(const std::vector<ServerConfig> &servers) {
 	std::cout << "\n========== CONFIGURATION DEBUG ==========" << std::endl;
 	std::cout << "Servers found: " << servers.size() << std::endl;
 
 	for (size_t i = 0; i < servers.size(); ++i) {
-		const auto& srv = servers[i];
+		const ServerConfig &srv = servers[i];
 		std::cout << "\n[SERVER " << i << "]" << std::endl;
 		std::cout << "  Host:         " << srv.host << std::endl;
 		std::cout << "  Port:         " << srv.port << std::endl;
 
 		std::cout << "  Server Names: ";
-		for (const auto& name : srv.server_names) std::cout << name << " ";
+		for (std::vector<std::string>::const_iterator it = srv.server_names.begin(); it != srv.server_names.end(); ++it)
+			std::cout << *it << " ";
 		std::cout << "\n  Max Body:     " << srv.client_max_body_size << " bytes" << std::endl;
 
 		std::cout << "  Error Pages:  " << std::endl;
-		for (const auto& [code, path] : srv.error_pages) {
-			std::cout << "    " << code << " -> " << path << std::endl;
+		for (std::map<int, std::string>::const_iterator it = srv.error_pages.begin(); it != srv.error_pages.end(); ++it) {
+			std::cout << "    " << it->first << " -> " << it->second << std::endl;
 		}
 
 		std::cout << "  Locations (" << srv.locations.size() << "):" << std::endl;
-		for (const auto& loc : srv.locations) {
+		for (std::vector<Location>::const_iterator it_loc = srv.locations.begin(); it_loc != srv.locations.end(); ++it_loc) {
+			const Location &loc = *it_loc;
 			std::cout << "    - Path: " << loc.path << std::endl;
 			std::cout << "      Root:      " << loc.root << std::endl;
 			std::cout << "      Index:     " << (loc.index.empty() ? "N/A" : loc.index) << std::endl;
 			std::cout << "      Autoindex: " << (loc.autoindex ? "on" : "off") << std::endl;
 
 			std::cout << "      Methods:   ";
-			for (const auto& m : loc.methods) std::cout << m << " ";
+			for (std::vector<std::string>::const_iterator it_met = loc.methods.begin(); it_met != loc.methods.end(); ++it_met) {
+				std::cout << *it_met << " ";
+			}
 			std::cout << std::endl;
 
 			if (loc.upload_dir.has_value())
@@ -43,9 +47,10 @@ void printConfig(const std::vector<ServerConfig>& servers) {
 	std::cout << "========================================\n" << std::endl;
 }
 
-void printTokens(const std::vector<std::string>& tokens) {
+void printTokens(const std::vector<std::string> &tokens) {
 	int i = 0;
-	for (const auto& token : tokens) {
+	for (std::vector<std::string>::const_iterator it = tokens.begin(); it != tokens.end(); ++it) {
+		const std::string &token = *it;
 		std::cout << "Token[" << i << "]: \t" << token << std::endl;
 		i++;
 	}

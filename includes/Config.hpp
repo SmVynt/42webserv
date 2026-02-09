@@ -7,6 +7,8 @@
 #include <vector>
 #include <optional>
 #include <map>
+#include <set>
+#include <filesystem>
 
 struct Location {
 	std::string path;
@@ -35,6 +37,7 @@ class Config {
 
 		ServerConfig	parseServer();
 		Location		parseLocation();
+		void			validate(const std::vector<ServerConfig> &servers);
 
 	public:
 		Config(const std::vector<std::string> &tokens);
@@ -43,8 +46,7 @@ class Config {
 		std::vector<ServerConfig> parse();
 };
 
-std::vector<std::string>	tokenize(const std::string& content);
-void						printConfig(const std::vector<ServerConfig>& servers);
-
+std::vector<std::string>	tokenize(const std::string &content);
+void						printConfig(const std::vector<ServerConfig> &servers);
 #endif
 

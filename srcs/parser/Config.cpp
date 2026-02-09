@@ -12,6 +12,7 @@ std::vector<ServerConfig> Config::parse(){
 		else
 			throw std::runtime_error("Unknown global token: " + _tokens[_pos]);
 	}
+	validate(servers);
 	return servers;
 }
 
@@ -146,4 +147,39 @@ Location Config::parseLocation() {
 		throw std::runtime_error("Expected '}' at the end of location block");
 
 	return loc;
+}
+
+void	Config::validate(const std::vector<ServerConfig> &servers) {
+	if (servers.empty())
+		throw std::runtime_error("No servers defined in config");
+
+	std::set<std::pair<std::string, int>> unique_servers;
+
+	for (const ServerConfig &srv : servers) {
+		if (srv.port <= 0 || srv.port > 65535)
+			throw std::runtime_error("Invalid port: " + std::to_string(srv.port));
+
+		if (!unique_servers.insert({srv.host, srv.port}).second)
+			throw std::runtime_error("Duplicate server on " + srv.host + ":" + std::to_string(srv.port));
+
+		for (const Location &loc : srv.locations) {
+			if (loc.path.empty())
+				throw std::runtime_error("Location path cannot be empty");
+
+			if (!loc.root.empty() && !std::filesystem::exists(loc.root)) {
+				std::cerr << "Warning: root path '" << loc.root << "' does not exist." << std::endl;
+			}
+
+			for (const std::string &method : loc.methods) {
+				if (method != "GET" && method != "POST" && method != "DELETE")
+					throw std::runtime_error("Unsupported method: " + method);
+			}
+
+			if (loc.cgi_path.has_value()) {
+				if (!std::filesystem::exists(*loc.cgi_path))
+					throw std::runtime_error("CGI interpreter not found: " + *loc.cgi_path);
+			}
+		}
+	}
+	std::cout << "Config validation: OK!" << std::endl;
 }
