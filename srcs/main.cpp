@@ -7,7 +7,10 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	try{
-		std::vector<std::string> tokens = tokenize("config/default.conf");
+		std::vector<std::string> tokens = (argc == 1) ? tokenize("config/default.conf") : tokenize(argv[1]);
+		Config parser(tokens);
+		std::vector<ServerConfig> servers = parser.parse();
+		printConfig(servers);
 	} catch(std::exception &e){
 		std::cout << e.what() << std::endl;
 	}

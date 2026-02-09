@@ -14,7 +14,8 @@ CORE_SRCS	= main.cpp \
 				core/Client.cpp
 
 PARSER_SRCS	= parser/Config.cpp \
-				parser/Request.cpp
+				parser/Request.cpp \
+				parser/parserUtils.cpp
 
 LOGIC_SRCS	= logic/Response.cpp \
 				logic/Methods.cpp

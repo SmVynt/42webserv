@@ -1,60 +1,149 @@
 #include "Config.hpp"
 
-Config::Config() {}
+Config::Config(const std::vector<std::string> &tokens): _tokens(tokens) {}
 
 Config::~Config() {}
 
-void printTokens(const std::vector<std::string>& tokens) {
-	int i = 0;
-	for (const auto& token : tokens) {
-		std::cout << "Token[" << i << "]: \t" << token << std::endl;
-		i++;
+std::vector<ServerConfig> Config::parse(){
+	std::vector<ServerConfig> servers;
+	while(_pos < _tokens.size()){
+		if (_tokens[_pos] == "server")
+			servers.push_back(parseServer());
+		else
+			throw std::runtime_error("Unknown global token: " + _tokens[_pos]);
 	}
+	return servers;
 }
 
-std::string removeComments(const std::string &content) {
-	std::string result;
-	std::istringstream stream(content);
-	std::string line;
+ServerConfig Config::parseServer() {
+	ServerConfig config;
+	if (_pos >= _tokens.size() || _tokens[_pos++] != "server")
+		throw std::runtime_error("Parser error: expected 'server'");
 
-	while (std::getline(stream, line)) {
-		size_t commentPos = line.find('#');
-		if (commentPos != std::string::npos) {
-			line = line.substr(0, commentPos);
+	if (_pos >= _tokens.size() || _tokens[_pos++] != "{")
+		throw std::runtime_error("Parser error: expected '{' after server");
+
+	while (_pos < _tokens.size() && _tokens[_pos] != "}") {
+		std::string key = _tokens[_pos++];
+
+		if (key == "listen") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Unexpected EOF after listen");
+			config.port = std::stoi(_tokens[_pos++]);
 		}
-		result += line + "\n";
-	}
-	return result;
-}
-
-std::string processFile(const std::string &filename){
-	std::ifstream file(filename);
-	if (!file.is_open()) throw std::runtime_error("Failed to open file");
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-
-	return removeComments(buffer.str());
-
-}
-
-std::vector<std::string> tokenize(const std::string &filename) {
-	std::vector<std::string> tokens;
-	std::string token;
-	std::istringstream stream(processFile(filename));
-
-	char c;
-	while (stream.get(c)) {
-		if (isspace(c)) continue;
-		if (c == '{' || c == '}' || c == ';') {
-			tokens.push_back(std::string(1, c));
-		} else {
-			token = c;
-			while (stream.get(c) && !isspace(c) && c != '{' && c != '}' && c != ';') {
-				token += c;
+		else if (key == "server_name") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Unexpected EOF after server_name");
+			config.server_names.push_back(_tokens[_pos++]);
+		}
+		else if (key == "host") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Unexpected EOF after host");
+			config.host = _tokens[_pos++];
+		}
+		else if (key == "error_page") {
+			if (_pos + 1 >= _tokens.size())
+				throw std::runtime_error("Missing arguments for error_page");
+			int code = std::stoi(_tokens[_pos++]);
+			config.error_pages[code] = _tokens[_pos++];
+		}
+		else if (key == "client_max_body_size") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Missing value for client_max_body_size");
+			size_t p;
+			long bytes = std::stol(_tokens[_pos], &p);
+			if (p < _tokens[_pos].length()) {
+				char unit = _tokens[_pos][p];
+				if (unit == 'M' || unit == 'm')
+					bytes *= 1048576;
+				else if (unit == 'G' || unit == 'g')
+					bytes *= 1073741824;
+				else if (unit == 'K' || unit == 'k')
+					bytes *= 1024;
 			}
-			stream.putback(c);
-			tokens.push_back(token);
+			config.client_max_body_size = bytes;
+			_pos++;
 		}
+		else if (key == "location") {
+			config.locations.push_back(parseLocation());
+			continue;
+		}
+		else {
+			throw std::runtime_error("Unknown server directive: " + key);
+		}
+
+		if (_pos >= _tokens.size() || _tokens[_pos++] != ";")
+			throw std::runtime_error("Expected ';' after " + key);
 	}
-	return tokens;
+
+	if (_pos >= _tokens.size() || _tokens[_pos++] != "}")
+		throw std::runtime_error("Expected '}' at the end of server block");
+
+	return config;
+}
+
+Location Config::parseLocation() {
+	Location loc;
+	loc.autoindex = false;
+	loc.index = "index.html";
+
+	if (_pos >= _tokens.size())
+		throw std::runtime_error("Unexpected EOF in location");
+	loc.path = _tokens[_pos++];
+
+	if (_pos >= _tokens.size() || _tokens[_pos++] != "{")
+		throw std::runtime_error("Expected '{' after location path");
+
+	while (_pos < _tokens.size() && _tokens[_pos] != "}") {
+		std::string key = _tokens[_pos++];
+
+		if (key == "root") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Missing root value");
+			loc.root = _tokens[_pos++];
+		}
+		else if (key == "index") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Missing index value");
+			loc.index = _tokens[_pos++];
+		}
+		else if (key == "methods") {
+			while (_pos < _tokens.size() && _tokens[_pos] != ";") {
+				loc.methods.push_back(_tokens[_pos++]);
+			}
+			if (loc.methods.empty())
+				throw std::runtime_error("No methods specified");
+		}
+		else if (key == "autoindex") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Missing autoindex value");
+			loc.autoindex = (_tokens[_pos++] == "on");
+		}
+		else if (key == "upload_dir") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Missing upload_dir value");
+			loc.upload_dir = _tokens[_pos++];
+		}
+		else if (key == "cgi_path") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Missing cgi_path value");
+			loc.cgi_path = _tokens[_pos++];
+		}
+		else if (key == "cgi_extension") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Missing cgi_ext value");
+			loc.cgi_ext = _tokens[_pos++];
+		}
+		else {
+			throw std::runtime_error("Unknown location directive: " + key);
+		}
+
+		if (_pos >= _tokens.size() || _tokens[_pos++] != ";")
+			throw std::runtime_error("Expected ';' after " + key);
+	}
+
+	if (_pos >= _tokens.size() || _tokens[_pos++] != "}")
+		throw std::runtime_error("Expected '}' at the end of location block");
+
+	return loc;
 }
