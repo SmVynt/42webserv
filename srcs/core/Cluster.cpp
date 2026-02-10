@@ -21,16 +21,24 @@ Cluster::~Cluster()
 {
 	for (const auto& [fd, port] : _listen_sockets)
 	{
-		if (fd > 0)
+		if (fd >= 0)
 			close(fd);
 	}
 }
 void	Cluster::setupCluster()
 {
+	for (const auto& pfd : _pollfds)
+	{
+		if (pfd.fd >= 0)
+			close(pfd.fd);
+	}
+	_pollfds.clear();
+	_listen_sockets.clear();
+
+	int error_code = 0;
 	for (const auto& config : _config_data)
 	{
 		int port = config.port;
-
 		bool already_open = false;
 		for (const auto& [fd, open_port] : _listen_sockets)
 		{
@@ -44,16 +52,45 @@ void	Cluster::setupCluster()
 			continue;
 		int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 		if (socket_fd < 0)
-			{
-				close(socket_fd);
-				throw std::runtime_error("Socket creation failed");
-			}
+		{
+			error_code = errno;
+			throw std::runtime_error("Socket creation failed: " + std::string(strerror(error_code)));
+		}
 		int option = 1;
 		if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0)
 		{
+			error_code = errno;
 			close(socket_fd);
-			throw std::runtime_error("Socket options instalation failed");
+			throw std::runtime_error("setsockopt(SO_REUSEADDR) failed: " + std::string(strerror(error_code)));
 		}
+		if (fcntl(socket_fd, F_SETFL, O_NONBLOCK) < 0)
+		{
+			error_code = errno;
+			close(socket_fd);
+			throw std::runtime_error("fcntl(O_NONBLOCK) failed: " + std::string(strerror(error_code)));
+		}
+		sockaddr_in address{};
+		address.sin_family = AF_INET;
+		address.sin_port = htons(config.port);
+		address.sin_addr.s_addr = INADDR_ANY;
+		if (bind(socket_fd, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) < 0)
+		{
+			error_code = errno;
+			close(socket_fd);
+			throw std::runtime_error("bind failed on port: " + std::to_string(config.port) + ": " + std::string(strerror(error_code)));
+		}
+		if (listen(socket_fd, 128) < 0)
+		{
+			error_code = errno;
+			close(socket_fd);
+			throw std::runtime_error("listen failed: " + std::string(strerror(error_code)));
+		}
+
+		_listen_sockets[socket_fd] = config.port;
+
+		_pollfds.push_back({socket_fd, POLLIN, 0});
+
+		std::cout << "Listening on port " << port << " (fd: " << socket_fd << ")" << std::endl;
 	}
 }
 void	Cluster::run(){}
