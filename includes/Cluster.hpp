@@ -3,6 +3,9 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include "Config.hpp"
 
 class VirtualServer;
@@ -10,7 +13,7 @@ class VirtualServer;
 class Cluster {
 	public:
 		Cluster();
-		Cluster(const std::vector<Config>& config);
+		Cluster(const std::vector<ServerConfig>& config);
 		Cluster(const Cluster& other);
 		Cluster& operator=(const Cluster& other);
 		~Cluster();
@@ -19,6 +22,7 @@ class Cluster {
 		void	run();
 	private:
 		std::vector<VirtualServer>	_servers;
+		std::vector<ServerConfig>	_config_data;
 		std::vector<struct pollfd>	_pollfds;
 		std::map<int, int>			_listen_sockets;
 };

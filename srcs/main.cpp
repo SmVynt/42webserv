@@ -1,5 +1,5 @@
 #include <iostream>
-#include "Server.hpp"
+#include "VirtualServer.hpp"
 
 int main(int argc, char **argv) {
 	if (argc > 2) {
@@ -11,6 +11,7 @@ int main(int argc, char **argv) {
 		Config parser(tokens);
 		std::vector<ServerConfig> servers = parser.parse();
 		printConfig(servers);
+
 	} catch(std::exception &e){
 		std::cout << e.what() << std::endl;
 	}

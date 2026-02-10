@@ -10,7 +10,7 @@ INC_DIR			= includes/
 SRC_DIR			= srcs/
 
 CORE_SRCS	= main.cpp \
-				core/Server.cpp \
+				core/VirtualServer.cpp \
 				core/Client.cpp
 
 PARSER_SRCS	= parser/Config.cpp \

@@ -1,5 +1,59 @@
 #include "Cluster.hpp"
 
-Cluster::Cluster(){};
+Cluster::Cluster(){}
+Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config) {}
+Cluster::Cluster(const Cluster& other)
+{
+	*this = other;
+}
+Cluster& Cluster::operator=(const Cluster& other)
+{
+	if (this != &other)
+	{
+		_config_data = other._config_data;
+		_listen_sockets = other._listen_sockets;
+		_pollfds = other._pollfds;
+		_servers = other._servers;
+	}
+	return *this;
+}
+Cluster::~Cluster()
+{
+	for (const auto& [fd, port] : _listen_sockets)
+	{
+		if (fd > 0)
+			close(fd);
+	}
+}
+void	Cluster::setupCluster()
+{
+	for (const auto& config : _config_data)
+	{
+		int port = config.port;
 
-Cluster::~Cluster(){};
+		bool already_open = false;
+		for (const auto& [fd, open_port] : _listen_sockets)
+		{
+			if (port == open_port)
+			{
+				already_open = true;
+				break;
+			}
+		}
+		if (already_open == true)
+			continue;
+		int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+		if (socket_fd < 0)
+			{
+				close(socket_fd);
+				throw std::runtime_error("Socket creation failed");
+			}
+		int option = 1;
+		if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0)
+		{
+			close(socket_fd);
+			throw std::runtime_error("Socket options instalation failed");
+		}
+	}
+}
+void	Cluster::run(){}
