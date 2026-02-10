@@ -19,13 +19,14 @@ struct Location {
 	std::optional<std::string> upload_dir;
 	std::optional<std::string> cgi_path;
 	std::optional<std::string> cgi_ext;
+	std::pair<int, std::string> redirection;
 };
 
 struct ServerConfig {
 	int port;
 	std::string host;
 	std::vector<std::string> server_names;
-	long client_max_body_size;
+	unsigned long client_max_body_size;
 	std::map<int, std::string> error_pages;
 	std::vector<Location> locations;
 };

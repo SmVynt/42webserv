@@ -52,15 +52,22 @@ ServerConfig Config::parseServer() {
 			if (_pos >= _tokens.size())
 				throw std::runtime_error("Missing value for client_max_body_size");
 			size_t p;
-			long bytes = std::stol(_tokens[_pos], &p);
+			unsigned long bytes = std::stol(_tokens[_pos], &p);
+			int mult = 1;
 			if (p < _tokens[_pos].length()) {
 				char unit = _tokens[_pos][p];
 				if (unit == 'M' || unit == 'm')
-					bytes *= 1048576;
+					mult = 1048576;
 				else if (unit == 'G' || unit == 'g')
-					bytes *= 1073741824;
+					mult = 1073741824;
 				else if (unit == 'K' || unit == 'k')
-					bytes *= 1024;
+					mult = 1024;
+				else if (unit != ';')
+					throw std::runtime_error("Invalid unit for client_max_body_size");
+				if (mult > 1 && bytes > (std::numeric_limits<unsigned long>::max() / mult))
+					throw std::runtime_error("client_max_body_size is too large");
+
+				bytes *= mult;
 			}
 			config.client_max_body_size = bytes;
 			_pos++;
@@ -135,6 +142,13 @@ Location Config::parseLocation() {
 				throw std::runtime_error("Missing cgi_ext value");
 			loc.cgi_ext = _tokens[_pos++];
 		}
+		else if (key == "return") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Missing return value");
+			int code = std::stoi(_tokens[_pos++]);
+			std::string url = _tokens[_pos++];
+			loc.redirection = {code, url};
+}
 		else {
 			throw std::runtime_error("Unknown location directive: " + key);
 		}
