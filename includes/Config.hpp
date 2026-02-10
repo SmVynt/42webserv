@@ -34,7 +34,7 @@ struct ServerConfig {
 class Config {
 	private:
 		std::vector<std::string> _tokens;
-		size_t _pos = 0;
+		size_t _pos;
 
 		ServerConfig	parseServer();
 		Location		parseLocation();
@@ -42,6 +42,8 @@ class Config {
 
 	public:
 		Config(const std::vector<std::string> &tokens);
+		Config(const Config &other);
+		Config &operator=(const Config &other);
 		~Config();
 
 		std::vector<ServerConfig> parse();

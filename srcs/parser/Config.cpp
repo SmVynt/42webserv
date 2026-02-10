@@ -1,6 +1,16 @@
 #include "Config.hpp"
 
-Config::Config(const std::vector<std::string> &tokens): _tokens(tokens) {}
+Config::Config(const std::vector<std::string> &tokens): _tokens(tokens), _pos(0) {}
+
+Config::Config(const Config &other): _tokens(other._tokens), _pos(other._pos) {}
+
+Config &Config::operator=(const Config &other){
+	if (this != &other){
+		_tokens = other._tokens;
+		_pos = other._pos;
+	}
+	return *this;
+}
 
 Config::~Config() {}
 
