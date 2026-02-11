@@ -58,8 +58,10 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	close(pipe_out[1]);
 
 	std::vector<char*> envp;
-	for (auto& pair : _env_vars) {
-		std::string env_str = pair.first + "=" + pair.second;
+	for (std::map<std::string, std::string>::iterator it = _env_vars.begin();
+			it != _env_vars.end();
+			++it) {
+		std::string env_str = it->first + "=" + it->second;
 		envp.push_back(strdup(env_str.c_str()));
 	}
 	envp.push_back(nullptr);
@@ -111,7 +113,6 @@ int	CGIexecutor::execute() {
 	close(pipe_in[0]);
 	close(pipe_out[1]);
 
-	// Set read pipe to non-blocking mode
 	int	flags = fcntl(pipe_out[0], F_GETFL, 0);
 	fcntl(pipe_out[0], F_SETFL, flags | O_NONBLOCK);
 
@@ -119,7 +120,6 @@ int	CGIexecutor::execute() {
 		write(pipe_in[1], _post_data.c_str(), _post_data.length());
 	}
 	close(pipe_in[1]);
-
 
 	std::cout << "=== CGI Output ===" << std::endl;
 	char			buffer[BUFFER_SIZE];
@@ -130,7 +130,7 @@ int	CGIexecutor::execute() {
 	poll_fd.fd = pipe_out[0];
 	poll_fd.events = POLLIN;
 
-	// Wait for child to finish, checking every 100ms
+	// Read output as it becomes available to prevent pipe buffer from filling
 	while (true) {
 		// Check if child process has exited
 		if (waitpid(pid, &status, WNOHANG) == pid)
@@ -146,11 +146,18 @@ int	CGIexecutor::execute() {
 			return 504;
 		}
 
-		// Wait a little to check again
-		usleep(POLL_INTERVAL_MS * 1000);
+		// Drain the pipe
+		int poll_result = poll(&poll_fd, 1, POLL_INTERVAL_MS);
+		if (poll_result > 0 && (poll_fd.revents & POLLIN)) {
+			ssize_t	bytes_read;
+			while ((bytes_read = read(pipe_out[0], buffer, BUFFER_SIZE - 1)) > 0) {
+				buffer[bytes_read] = '\0';
+				std::cout << buffer;
+	}
+		}
 	}
 
-	// Read information from child process
+	// Read any remaining data after child exits
 	ssize_t	bytes_read;
 	while ((bytes_read = read(pipe_out[0], buffer, BUFFER_SIZE - 1)) > 0) {
 		buffer[bytes_read] = '\0';
@@ -172,3 +179,35 @@ int	CGIexecutor::execute() {
 
 	return 1;
 };
+
+// Wrapper function for simple CGI execution
+int	runCGI(const std::string &script_path,
+		   const std::string &query_string,
+		   const std::string &post_data,
+		   int timeout)
+{
+	CGIexecutor cgi(script_path);
+	cgi.setTimeout(timeout);
+
+	if (!query_string.empty())
+		cgi.setQuery(query_string);
+
+	if (!post_data.empty())
+		cgi.setPostData(post_data);
+
+	return cgi.execute();
+}
+
+// Overload: script + timeout only
+int	runCGI(const std::string &script_path, int timeout)
+{
+	return runCGI(script_path, "", "", timeout);
+}
+
+// Overload: script + query + timeout (skip post_data)
+int	runCGI(const std::string &script_path,
+		   const std::string &query_string,
+		   int timeout)
+{
+	return runCGI(script_path, query_string, "", timeout);
+}

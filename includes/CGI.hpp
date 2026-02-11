@@ -27,16 +27,47 @@ class CGIexecutor {
 		static constexpr int	POLL_INTERVAL_MS = 100;
 
 		void	runChild(int pipe_in[2], int pipe_out[2]);
-		void	setQuery(const std::string &query);
-		void	setPostData(const std::string &data);
 		void	setupEnvironment();
-		void	setTimeout(int seconds);
 
 	public:
 		CGIexecutor(const std::string &path);
 		~CGIexecutor();
 
+		void	setTimeout(int seconds);
+		void	setQuery(const std::string &query);
+		void	setPostData(const std::string &data);
 		int		execute();
 };
+
+/**
+ * Runs a CGI script with the given parameters and returns the exit status.
+ * @param script_path The path to the CGI script to execute.
+ * @param query_string The query string to pass to the CGI script (optional).
+ * @param post_data The POST data to pass to the CGI script (optional).
+ * @param timeout The maximum time to allow the CGI script to run before killing it (optional
+ * defaults to 10 seconds).
+ *
+ * Example usage:
+ * runCGI("script.py");
+ * runCGI("script.py", "name=John");
+ * runCGI("script.py", "name=John", 30);
+ * runCGI("script.py", 30);
+ * runCGI("script.py", "name=John", "data=value");
+ * runCGI("script.py", "name=John", "data=value", 30);
+ *
+ * @return The exit status of the CGI script, or -1 on error.
+ */
+int	runCGI(const std::string &script_path,
+			const std::string &query_string = "",
+			const std::string &post_data = "",
+			int timeout = 10);
+
+int	runCGI(const std::string &script_path,
+			const std::string &query_string,
+			int timeout);
+
+int	runCGI(const std::string &script_path, int timeout);
+
+
 
 #endif

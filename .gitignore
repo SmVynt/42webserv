@@ -30,7 +30,5 @@ www/uploads/*
 test/
 
 # CGI testing
-tests/
 CGI_DEVELOPMENT.md
-cgi-bin/*
 cgi_test
