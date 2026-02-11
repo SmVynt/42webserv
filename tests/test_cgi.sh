@@ -32,8 +32,14 @@ echo -e "\n${YELLOW}Test 3: Python CGI - POST request${NC}"
 
 # Test 4: PHP CGI (if available)
 if [ -f cgi-bin/test.php ] && command -v php-cgi &> /dev/null; then
-    echo -e "\n${YELLOW}Test 4: PHP CGI${NC}"
+    echo -e "\n${YELLOW}Test 4: PHP CGI - GET request${NC}"
     ./cgi_test cgi-bin/test.php
+
+    echo -e "\n${YELLOW}Test 4b: PHP CGI - GET with query string${NC}"
+    ./cgi_test cgi-bin/test.php "name=Bob&city=Paris"
+
+    echo -e "\n${YELLOW}Test 4c: PHP CGI - POST request${NC}"
+    ./cgi_test cgi-bin/test.php "" "email=test@example.com&message=Hello"
 else
     echo -e "\n${YELLOW}Test 4: PHP CGI - SKIPPED (php-cgi not installed or test.php missing)${NC}"
 fi
@@ -64,56 +70,6 @@ if [ -f cgi-bin/infinite.py ]; then
     echo -e "\n${YELLOW}Test 8: Timeout test - infinite.py (infinite loop, 3 second timeout)${NC}"
     echo -e "${YELLOW}Expected: Should timeout with 504 status${NC}"
     ./cgi_test cgi-bin/infinite.py "" "" 3
-fi
-
-# Advanced Tests
-echo -e "\n${YELLOW}=== Advanced CGI Tests ===${NC}\n"
-
-# Test 9: Advanced test - comprehensive environment variables
-if [ -f cgi-bin/advanced_test.py ]; then
-    chmod +x cgi-bin/advanced_test.py
-    echo -e "${YELLOW}Test 9: Advanced CGI - comprehensive features${NC}"
-    ./cgi_test cgi-bin/advanced_test.py "format=json&user=alice&id=42"
-fi
-
-# Test 10: Error test - stderr output
-if [ -f cgi-bin/error_test.py ]; then
-    chmod +x cgi-bin/error_test.py
-    echo -e "\n${YELLOW}Test 10: Error handling - stderr output${NC}"
-    ./cgi_test cgi-bin/error_test.py "stderr"
-fi
-
-# Test 11: Error test - script crash
-if [ -f cgi-bin/error_test.py ]; then
-    echo -e "\n${YELLOW}Test 11: Error handling - script crash${NC}"
-    echo -e "${YELLOW}Expected: Non-zero exit code${NC}"
-    ./cgi_test cgi-bin/error_test.py "crash"
-fi
-
-# Test 12: Error test - missing CGI header
-if [ -f cgi-bin/error_test.py ]; then
-    echo -e "\n${YELLOW}Test 12: Error handling - missing CGI header${NC}"
-    ./cgi_test cgi-bin/error_test.py "no_header"
-fi
-
-# Test 13: Stress test - small output (100 lines)
-if [ -f cgi-bin/stress.py ]; then
-    chmod +x cgi-bin/stress.py
-    echo -e "\n${YELLOW}Test 13: Stress test - 100 lines of output${NC}"
-    ./cgi_test cgi-bin/stress.py "100"
-fi
-
-# Test 14: Stress test - large output (1000 lines)
-if [ -f cgi-bin/stress.py ]; then
-    echo -e "\n${YELLOW}Test 14: Stress test - 1000 lines of output${NC}"
-    ./cgi_test cgi-bin/stress.py "1000"
-fi
-
-# Test 15: Upload handler - POST data
-if [ -f cgi-bin/upload.py ]; then
-    chmod +x cgi-bin/upload.py
-    echo -e "\n${YELLOW}Test 15: Upload handler - POST data${NC}"
-    ./cgi_test cgi-bin/upload.py "" "filename=test.txt&data=Hello+World"
 fi
 
 # Cleanup

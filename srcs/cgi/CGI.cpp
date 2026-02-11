@@ -38,6 +38,9 @@ void	CGIexecutor::setupEnvironment() {
 	_env_vars["SERVER_PORT"] = "8080";
 	_env_vars["SERVER_PROTOCOL"] = "HTTP/1.1";
 	_env_vars["SERVER_SOFTWARE"] = "webserv/1.0";
+	
+	// PHP CGI security: Required for php-cgi to execute
+	_env_vars["REDIRECT_STATUS"] = "200";
 
 	// Set defaults if not already set
 	if (_env_vars.find("REQUEST_METHOD") == _env_vars.end()) {
