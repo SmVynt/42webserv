@@ -6,6 +6,12 @@ Request::~Request() {}
 
 bool	Request::isFinished() const { return _state == DONE || _state == ERROR; }
 
+std::string	Request::getBody() const {return _body; }
+std::string	Request::getMethod() const {return _method; }
+std::string	Request::getHttpVersion() const {return _http_version; }
+std::string	Request::getPath() const {return _path; }
+std::map<std::string, std::string>	Request::getHeaders() const {return _headers; }
+
 void	Request::consume(const std::string &new_chunk){
 	_raw_storage += new_chunk;
 

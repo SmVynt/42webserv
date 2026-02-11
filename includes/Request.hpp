@@ -25,6 +25,14 @@ public:
 	void consume(const std::string &new_chunk);
 
 	bool isFinished() const;
+
+	std::string	getMethod() const;
+	std::string	getPath() const;
+	std::string	getHttpVersion() const;
+	std::string	getBody() const;
+	std::map<std::string, std::string>	getHeaders() const;
+
+
 };
 
 #endif
