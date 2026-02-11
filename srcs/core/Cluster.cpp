@@ -93,4 +93,98 @@ void	Cluster::setupCluster()
 		std::cout << "Listening on port " << port << " (fd: " << socket_fd << ")" << std::endl;
 	}
 }
-void	Cluster::run(){}
+void	Cluster::run()
+{
+	std::cout << "--- Server is starting the event loop ---" << std::endl;
+
+	while (true){
+		int ret = poll(_pollfds.data(), _pollfds.size(), -1);
+		if (ret < 0){
+			if (errno == EINTR)
+				continue;
+			throw std::runtime_error("Poll filed: " + std::string(strerror(errno)));
+		}
+		for (size_t i = 0; i < _pollfds.size(); ++i){
+			if (_pollfds[i].revents == 0)
+				continue;
+			if (_pollfds[i].revents & (POLLHUP | POLLERR | POLLNVAL)){
+				closeConnection(i);
+				--i;
+				continue;
+			}
+			if (_pollfds[i].revents & POLLIN){
+				if (_listen_sockets.count(_pollfds[i].fd)){
+					acceptNewConnection(_pollfds[i].fd);
+				} else {
+					if (handleClientRequest(i) == true)
+						--i;
+				}
+			}
+		}
+	}
+}
+
+void Cluster::acceptNewConnection(int listen_fd)
+{
+	struct sockaddr_in client_addr{};
+	socklen_t client_len = sizeof(client_addr);
+
+	int client_fd = accept(listen_fd, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
+
+	if (client_fd < 0){
+		std::cerr << "Warning: accept() failed: " << strerror(errno) << std::endl;
+		return;
+	}
+	if (fcntl(client_fd, F_SETFL, O_NONBLOCK) < 0){
+		std::cerr << "Warning: fcntl() failed for FD " << client_fd << ": " << strerror(errno) << std::endl;
+		close(client_fd);
+		return;
+	}
+	_pollfds.push_back({client_fd, POLLIN, 0});
+	std::cout << "New client connected: FD " << client_fd << std::endl;
+}
+
+
+bool Cluster::handleClientRequest(size_t pollfd_index)
+{
+	int client_fd = _pollfds[pollfd_index].fd;
+	char buffer[4096];
+
+	int byte_reads = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+	if (byte_reads > 0){
+		buffer[byte_reads] = '\0';
+		std::cout << "--- RAW REQUEST FROM CLIENT ---\n" << buffer << "\n-------------------------------" << std::endl;
+		// TO DO: Sasha must create request class that will revieve and handle data from this buffer
+		std::string dummyResponse = "HTTP/1.1 200 OK\r\nContent-Length: 19\r\n\r\nHello from Cluster!";
+
+		send(client_fd, dummyResponse.c_str(), dummyResponse.length(), 0);
+
+		// std::cout << "--- Got request from FD " << client_fd << " ---" << std::endl;
+		// ! Temperorly ! Delete after Sasha creates Request class
+		// this->closeConnection(pollfd_index);
+		return false;
+	} else if (byte_reads == 0){
+		std::cout << "Client (FD " << client_fd << ") closed connection." << std::endl;
+		this->closeConnection(pollfd_index);
+		return true;
+	} else {
+		std::cerr << "Recv error on FD " << client_fd << ": " << strerror(errno) << std::endl;
+		this->closeConnection(pollfd_index);
+		return true;
+	}
+
+}
+
+void Cluster::closeConnection(size_t pollfd_index)
+{
+	if (pollfd_index >= _pollfds.size())
+		return;
+	int fd = _pollfds[pollfd_index].fd;
+	if (fd >= 0)
+		close(fd);
+	_pollfds.erase(_pollfds.begin() + pollfd_index);
+
+	// TO DO: After Request implimentation
+	// _requests.erase(fd);
+	std::cout << "[Cluster] Connection closed on FD: " << fd << std::endl;
+}

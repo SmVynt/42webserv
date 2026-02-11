@@ -10,9 +10,10 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <cstring>
+#include <poll.h>
 #include "Config.hpp"
-
-class VirtualServer;
+#include "Request.hpp"
+#include "VirtualServer.hpp"
 
 class Cluster {
 	public:
@@ -25,8 +26,13 @@ class Cluster {
 		void	setupCluster();
 		void	run();
 	private:
+		void acceptNewConnection(int listen_fd);
+		bool handleClientRequest(size_t pollfd_index);
+		void closeConnection(size_t pollfd_index);
+
 		std::vector<VirtualServer>	_servers;
 		std::vector<ServerConfig>	_config_data;
 		std::vector<struct pollfd>	_pollfds;
 		std::map<int, int>			_listen_sockets;
+		std::map<int, Request>		_requests;
 };
