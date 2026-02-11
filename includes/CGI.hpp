@@ -22,15 +22,16 @@ class CGIexecutor {
 		std::map<std::string, std::string>	_env_vars;
 		time_t								_timeout_seconds;
 
+		static constexpr int	DEFAULT_TIMEOUT_S = 10;
+		static constexpr size_t	BUFFER_SIZE = 4096;
+		static constexpr int	POLL_INTERVAL_MS = 100;
+
 		void	runChild(int pipe_in[2], int pipe_out[2]);
 		void	setQuery(const std::string &query);
 		void	setPostData(const std::string &data);
 		void	setupEnvironment();
 		void	setTimeout(int seconds);
 
-		static const int	DEFAULT_TIMEOUT = 10;
-		static const int	BUFFER_SIZE = 4096;
-		static const int	POLL_INTERVAL_MS = 100;
 	public:
 		CGIexecutor(const std::string &path);
 		~CGIexecutor();

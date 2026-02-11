@@ -1,14 +1,13 @@
 #include "CGI.hpp"
 
 CGIexecutor::CGIexecutor(const std::string &path)
-	: _script_path(path), _timeout_seconds(DEFAULT_TIMEOUT_SECONDS) {}
+	: _script_path(path), _timeout_seconds(DEFAULT_TIMEOUT_S) {}
 
 CGIexecutor::~CGIexecutor() {}
 
 void CGIexecutor::setTimeout(int seconds) {
 	_timeout_seconds = seconds;
 }
-
 
 void CGIexecutor::setQuery(const std::string &query)
 {
@@ -47,17 +46,6 @@ void	CGIexecutor::setupEnvironment() {
 	if (_env_vars.find("QUERY_STRING") == _env_vars.end()) {
 		_env_vars["QUERY_STRING"] = "";
 	}
-}
-
-bool	CGIexecutor::checkTimeout(time_t start_time, pid_t pid) {
-	time_t	elapsed = time(NULL) - start_time;
-	if (elapsed >= _timeout_seconds) {
-		std::cerr << "Error: CGI timeout after " << elapsed << " seconds" << std::endl;
-		kill(pid, SIGKILL);
-		waitpid(pid, NULL, 0);
-		return true;
-	}
-	return false;
 }
 
 void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
@@ -158,9 +146,11 @@ int	CGIexecutor::execute() {
 			return 504;
 		}
 
-		poll(&poll_fd, 1, POLL_INTERVAL_MS);
+		// Wait a little to check again
+		usleep(POLL_INTERVAL_MS * 1000);
 	}
 
+	// Read information from child process
 	ssize_t	bytes_read;
 	while ((bytes_read = read(pipe_out[0], buffer, BUFFER_SIZE - 1)) > 0) {
 		buffer[bytes_read] = '\0';
@@ -169,7 +159,6 @@ int	CGIexecutor::execute() {
 
 	close(pipe_out[0]);
 
-	// Final wait for child process (should be immediate)
 	waitpid(pid, &status, 0);
 
 	if (WIFEXITED(status)) {
