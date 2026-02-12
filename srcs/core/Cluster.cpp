@@ -33,6 +33,7 @@ void	Cluster::setupCluster()
 			close(pfd.fd);
 	}
 	_pollfds.clear();
+	_fd_table.clear();
 	_listen_sockets.clear();
 
 	int error_code = 0;
@@ -63,15 +64,9 @@ void	Cluster::setupCluster()
 			close(socket_fd);
 			throw std::runtime_error("setsockopt(SO_REUSEADDR) failed: " + std::string(strerror(error_code)));
 		}
-		if (fcntl(socket_fd, F_SETFL, O_NONBLOCK) < 0)
-		{
-			error_code = errno;
-			close(socket_fd);
-			throw std::runtime_error("fcntl(O_NONBLOCK) failed: " + std::string(strerror(error_code)));
-		}
 		sockaddr_in address{};
 		address.sin_family = AF_INET;
-		address.sin_port = htons(config.port);
+		address.sin_port = htons(port);
 		address.sin_addr.s_addr = INADDR_ANY;
 		if (bind(socket_fd, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) < 0)
 		{
@@ -86,9 +81,8 @@ void	Cluster::setupCluster()
 			throw std::runtime_error("listen failed: " + std::string(strerror(error_code)));
 		}
 
-		_listen_sockets[socket_fd] = config.port;
-
-		_pollfds.push_back({socket_fd, POLLIN, 0});
+		addFD(socket_fd, FD_LISTENER, -1, 0);
+		_listen_sockets[socket_fd] = port;
 
 		std::cout << "Listening on port " << port << " (fd: " << socket_fd << ")" << std::endl;
 	}
@@ -98,27 +92,47 @@ void	Cluster::run()
 	std::cout << "--- Server is starting the event loop ---" << std::endl;
 
 	while (true){
-		int ret = poll(_pollfds.data(), _pollfds.size(), -1);
+		int ret = poll(_pollfds.data(), _pollfds.size(), 1000);
 		if (ret < 0){
 			if (errno == EINTR)
 				continue;
 			throw std::runtime_error("Poll filed: " + std::string(strerror(errno)));
 		}
-		for (size_t i = 0; i < _pollfds.size(); ++i){
-			if (_pollfds[i].revents == 0)
+
+		handleTimeout();
+
+		for (int i = 0; i < static_cast<int>(_pollfds.size()); ++i){
+			int fd = _pollfds[i].fd;
+			short revents = _pollfds[i].revents;
+
+			if (revents == 0)
 				continue;
-			if (_pollfds[i].revents & (POLLHUP | POLLERR | POLLNVAL)){
-				closeConnection(i);
+			updateActivity(fd);
+
+			if (revents & POLLIN){
+				if (_fd_table[fd].type == FD_LISTENER){
+					acceptNewConnection(fd);
+				} else if (_fd_table[fd].type == FD_CLIENT){
+					if (handleClientRequest(fd) == true){
+						--i;
+						continue;
+					}
+				}
+			}
+
+			if (revents & POLLOUT){
+				if (_fd_table[fd].type == FD_CLIENT){
+					if (handleClientResponse(fd) == true){
+						--i;
+						continue;
+					}
+				}
+			}
+
+			if (revents & (POLLHUP | POLLERR | POLLNVAL)){
+				closeConnection(fd);
 				--i;
 				continue;
-			}
-			if (_pollfds[i].revents & POLLIN){
-				if (_listen_sockets.count(_pollfds[i].fd)){
-					acceptNewConnection(_pollfds[i].fd);
-				} else {
-					if (handleClientRequest(i) == true)
-						--i;
-				}
 			}
 		}
 	}
@@ -135,56 +149,133 @@ void Cluster::acceptNewConnection(int listen_fd)
 		std::cerr << "Warning: accept() failed: " << strerror(errno) << std::endl;
 		return;
 	}
-	if (fcntl(client_fd, F_SETFL, O_NONBLOCK) < 0){
-		std::cerr << "Warning: fcntl() failed for FD " << client_fd << ": " << strerror(errno) << std::endl;
-		close(client_fd);
-		return;
-	}
-	_pollfds.push_back({client_fd, POLLIN, 0});
+	// TO DO: Take timeout from ServerConfig
+	// int timeout = _config_data[config_index_for_port].client_timeout;
+	// Temperorly hardcoded
+	addFD(client_fd, FD_CLIENT, -1, 60);
 	std::cout << "New client connected: FD " << client_fd << std::endl;
 }
 
 
-bool Cluster::handleClientRequest(size_t pollfd_index)
+bool Cluster::handleClientRequest(int fd)
 {
-	int client_fd = _pollfds[pollfd_index].fd;
 	char buffer[4096];
 
-	int byte_reads = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+	int byte_reads = recv(fd, buffer, sizeof(buffer) - 1, 0);
 	if (byte_reads > 0){
 		buffer[byte_reads] = '\0';
 		std::cout << "--- RAW REQUEST FROM CLIENT ---\n" << buffer << "\n-------------------------------" << std::endl;
 		// TO DO: Sasha must create request class that will revieve and handle data from this buffer
-		std::string dummyResponse = "HTTP/1.1 200 OK\r\nContent-Length: 19\r\n\r\nHello from Cluster!";
+		_fd_table[fd].write_buffer = "HTTP/1.1 200 OK\r\nContent-Length: 19\r\n\r\nHello from Cluster!";
 
-		send(client_fd, dummyResponse.c_str(), dummyResponse.length(), 0);
-
-		// std::cout << "--- Got request from FD " << client_fd << " ---" << std::endl;
-		// ! Temperorly ! Delete after Sasha creates Request class
-		// this->closeConnection(pollfd_index);
+		updatePollEvents(fd, POLLOUT);
 		return false;
-	} else if (byte_reads == 0){
-		std::cout << "Client (FD " << client_fd << ") closed connection." << std::endl;
-		this->closeConnection(pollfd_index);
-		return true;
 	} else {
-		std::cerr << "Recv error on FD " << client_fd << ": " << strerror(errno) << std::endl;
-		this->closeConnection(pollfd_index);
+		closeConnection(fd);
 		return true;
 	}
 
 }
 
-void Cluster::closeConnection(size_t pollfd_index)
+void Cluster::closeConnection(int fd)
 {
-	if (pollfd_index >= _pollfds.size())
-		return;
-	int fd = _pollfds[pollfd_index].fd;
-	if (fd >= 0)
-		close(fd);
-	_pollfds.erase(_pollfds.begin() + pollfd_index);
+	removeFD(fd);
 
 	// TO DO: After Request implimentation
 	// _requests.erase(fd);
 	std::cout << "[Cluster] Connection closed on FD: " << fd << std::endl;
+}
+
+void Cluster::updatePollEvents(int fd, short events)
+{
+	for (auto& pfd : _pollfds) {
+		if (pfd.fd == fd) {
+			pfd.events = events;
+			break;
+		}
+	}
+}
+
+bool Cluster::handleClientResponse(int fd)
+{
+	std::string& response = _fd_table[fd].write_buffer;
+	if (response.empty()){
+		updatePollEvents(fd, POLLIN);
+		return false;
+	}
+	// TO DO: Check if everything was sent or not. If yes delete only sent data
+	int bytes_sent = send(fd, response.c_str(), response.length(), 0);
+
+	if (bytes_sent >= 0){
+		response.clear();
+
+		updatePollEvents(fd, POLLIN);
+		return false;
+	} else {
+		closeConnection(fd);
+		return true;
+	}
+}
+
+void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
+{
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
+		return;
+	struct pollfd pfd;
+	pfd.fd = fd;
+	pfd.events = POLLIN;
+	pfd.revents = 0;
+	_pollfds.push_back(pfd);
+
+	FDMetadata metadata;
+	metadata.fd = fd;
+	metadata.type = type;
+	metadata.client_fd = client_ref;
+	metadata.last_activity = time(NULL);
+	metadata.timeout_value = timeout;
+	metadata.is_ready_to_close = false;
+
+	_fd_table[fd] = metadata;
+}
+
+void Cluster::removeFD(int fd)
+{
+	for (auto it = _pollfds.begin(); it != _pollfds.end(); ++it){
+		if (it->fd == fd){
+			_pollfds.erase(it);
+			break;
+		}
+	}
+	_fd_table.erase(fd);
+
+	close(fd);
+}
+
+void Cluster::updateActivity(int fd)
+{
+	if (auto it = _fd_table.find(fd); it != _fd_table.end()){
+		it->second.last_activity = time(NULL);
+	}
+}
+
+void Cluster::handleTimeout()
+{
+	time_t now = time(NULL);
+	for (auto it = _fd_table.begin(); it != _fd_table.end();){
+		int fd = it->first;
+		FDMetadata& metadata = it->second;
+
+		if (metadata.type == FD_LISTENER){
+			++it;
+			continue;
+		}
+		if (now - metadata.last_activity > metadata.timeout_value){
+			std::cout << "Timeout reached for FD: " << it->first << std::endl;
+			int fd_to_close = fd;
+			++it;
+			closeConnection(fd_to_close);
+		} else {
+			++it;
+		}
+	}
 }
