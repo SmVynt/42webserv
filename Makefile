@@ -10,11 +10,12 @@ INC_DIR			= includes/
 SRC_DIR			= srcs/
 
 CORE_SRCS	= main.cpp \
-				core/Server.cpp \
-				core/Client.cpp
-
+				core/VirtualServer.cpp \
+				core/Client.cpp \
+				core/Cluster.cpp
 PARSER_SRCS	= parser/Config.cpp \
-				parser/Request.cpp
+				parser/Request.cpp \
+				parser/parserUtils.cpp
 
 LOGIC_SRCS	= logic/Response.cpp \
 				logic/Methods.cpp
