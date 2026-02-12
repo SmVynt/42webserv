@@ -158,7 +158,7 @@ Location Config::parseLocation() {
 			int code = std::stoi(_tokens[_pos++]);
 			std::string url = _tokens[_pos++];
 			loc.redirection = {code, url};
-}
+		}
 		else {
 			throw std::runtime_error("Unknown location directive: " + key);
 		}
