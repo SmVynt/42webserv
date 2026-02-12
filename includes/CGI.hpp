@@ -14,13 +14,37 @@
 # include <fcntl.h> // For fcntl (non-blocking mode)
 # include <ctime> // For timeout handling
 
+class CGIconfig {
+	public:
+		std::string	script_path;
+		std::string	query_string;
+		std::string	post_data;
+		int			timeout;
+
+		CGIconfig(const std::string &path,
+				  const std::string &query = "",
+				  const std::string &post = "",
+				  int timeout_sec = 10)
+			: script_path(path), query_string(query), post_data(post), timeout(timeout_sec) {};
+
+		~CGIconfig() {};
+};
+
 class CGIexecutor {
 	private:
 		std::string							_script_path;
 		std::string							_query_string;
 		std::string							_post_data;
 		std::map<std::string, std::string>	_env_vars;
+
 		time_t								_timeout_seconds;
+		time_t								_start_time;
+		pid_t								_child_pid;
+		int									_pipe_out_fd;
+		int									_pipe_in_fd;
+		int									_exit_status;
+		std::string							_output_buffer;
+		bool 								_is_complete;
 
 		static constexpr int	DEFAULT_TIMEOUT_S = 10;
 		static constexpr size_t	BUFFER_SIZE = 4096;
@@ -31,19 +55,23 @@ class CGIexecutor {
 		void	setEnvKey(const std::string &key, const std::string &value);
 
 	public:
-		CGIexecutor(const std::string &path);
+		CGIexecutor(const CGIconfig &config);
 		~CGIexecutor();
 
 		void	setTimeout(int seconds);
 		void	setQuery(const std::string &query);
 		void	setPostData(const std::string &data);
-		void	setRequestMethod(const std::string &method);
-		void	setRequestURI(const std::string &uri);
-		void	setServerInfo(const std::string &name, const std::string &port);
-		void	setRemoteAddr(const std::string &addr);
 		void	setHttpHeader(const std::string &name, const std::string &value);
-		void	setContentType(const std::string &type);
-		int		execute();
+
+		int			start();
+		void		setComplete(bool complete);
+		bool		isComplete();
+		bool		readOutput();
+		bool		checkTimeout() const;
+		int			getOutputFd() const;
+		int			getExitStatus() const;
+		std::string	getOutput() const;
+		void		killChildProcess();
 };
 
 /**
@@ -64,17 +92,15 @@ class CGIexecutor {
  *
  * @return The exit status of the CGI script, or -1 on error.
  */
-int	runCGI(const std::string &script_path,
-			const std::string &query_string = "",
-			const std::string &post_data = "",
-			int timeout = 10);
+CGIexecutor*	runCGI(const std::string &script_path,
+				const std::string &query_string = "",
+				const std::string &post_data = "",
+				int timeout = 10);
 
-int	runCGI(const std::string &script_path,
-			const std::string &query_string,
-			int timeout);
+CGIexecutor*	runCGI(const std::string &script_path,
+				const std::string &query_string,
+				int timeout);
 
-int	runCGI(const std::string &script_path, int timeout);
-
-
+CGIexecutor*	runCGI(const std::string &script_path, int timeout);
 
 #endif
