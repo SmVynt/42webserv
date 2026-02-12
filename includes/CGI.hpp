@@ -28,6 +28,7 @@ class CGIexecutor {
 
 		void	runChild(int pipe_in[2], int pipe_out[2]);
 		void	setupEnvironment();
+		void	setEnvKey(const std::string &key, const std::string &value);
 
 	public:
 		CGIexecutor(const std::string &path);
@@ -36,6 +37,12 @@ class CGIexecutor {
 		void	setTimeout(int seconds);
 		void	setQuery(const std::string &query);
 		void	setPostData(const std::string &data);
+		void	setRequestMethod(const std::string &method);
+		void	setRequestURI(const std::string &uri);
+		void	setServerInfo(const std::string &name, const std::string &port);
+		void	setRemoteAddr(const std::string &addr);
+		void	setHttpHeader(const std::string &name, const std::string &value);
+		void	setContentType(const std::string &type);
 		int		execute();
 };
 

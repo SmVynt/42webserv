@@ -5,11 +5,16 @@ CGIexecutor::CGIexecutor(const std::string &path)
 
 CGIexecutor::~CGIexecutor() {}
 
-void CGIexecutor::setTimeout(int seconds) {
+void	CGIexecutor::setEnvKey(const std::string &key, const std::string &value) {
+	if (_env_vars.find(key) == _env_vars.end())
+		_env_vars[key] = value;
+}
+
+void	CGIexecutor::setTimeout(int seconds) {
 	_timeout_seconds = seconds;
 }
 
-void CGIexecutor::setQuery(const std::string &query)
+void	CGIexecutor::setQuery(const std::string &query)
 {
 	_query_string = query;
 	_env_vars["QUERY_STRING"] = query;
@@ -18,37 +23,67 @@ void CGIexecutor::setQuery(const std::string &query)
 void	CGIexecutor::setPostData(const std::string &data) {
 	_post_data = data;
 	_env_vars["CONTENT_LENGTH"] = std::to_string(data.length());
-	_env_vars["CONTENT_TYPE"] = "application/x-www-form-urlencoded";
+	setEnvKey("CONTENT_TYPE", "application/x-www-form-urlencoded");
 	_env_vars["REQUEST_METHOD"] = "POST";
 };
 
+void	CGIexecutor::setRequestMethod(const std::string &method) {
+	_env_vars["REQUEST_METHOD"] = method;
+}
+
+void	CGIexecutor::setRequestURI(const std::string &uri) {
+	_env_vars["REQUEST_URI"] = uri;
+}
+
+void	CGIexecutor::setServerInfo(const std::string &name, const std::string &port) {
+	_env_vars["SERVER_NAME"] = name;
+	_env_vars["SERVER_PORT"] = port;
+}
+
+void	CGIexecutor::setRemoteAddr(const std::string &addr) {
+	_env_vars["REMOTE_ADDR"] = addr;
+	_env_vars["REMOTE_HOST"] = addr;
+}
+
+void	CGIexecutor::setHttpHeader(const std::string &name, const std::string &value) {
+	// Convert HTTP header name to CGI format: Host -> HTTP_HOST
+	std::string cgi_name = "HTTP_" + name;
+	for (size_t i = 0; i < cgi_name.length(); ++i) {
+		if (cgi_name[i] == '-')
+			cgi_name[i] = '_';
+		else
+			cgi_name[i] = std::toupper(cgi_name[i]);
+	}
+	_env_vars[cgi_name] = value;
+}
+
+void	CGIexecutor::setContentType(const std::string &type) {
+	_env_vars["CONTENT_TYPE"] = type;
+}
+
 void	CGIexecutor::setupEnvironment() {
-	// _env_vars["AUTH_TYPE"] = "";
-	// _env_vars["CONTENT_LENGTH"] = "";
 	_env_vars["GATEWAY_INTERFACE"] = "CGI/1.1";
+	_env_vars["SERVER_PROTOCOL"] = "HTTP/1.1";
+	_env_vars["SERVER_SOFTWARE"] = "webserv/1.0";
+
+	// Set defaults only if not already set by setter methods
+	setEnvKey("SERVER_NAME", "localhost");
+	setEnvKey("SERVER_PORT", "8080");
+	setEnvKey("REQUEST_METHOD", "GET");
+	setEnvKey("QUERY_STRING", "");
+	setEnvKey("REMOTE_ADDR", "127.0.0.1");
+	setEnvKey("REMOTE_HOST", "localhost");
+
 	_env_vars["PATH_INFO"] = "";
 	_env_vars["PATH_TRANSLATED"] = "";
-	_env_vars["REMOTE_ADDR"] = "127.0.0.1";
-	_env_vars["REMOTE_HOST"] = "localhost";
-
 	_env_vars["SCRIPT_NAME"] = "/cgi-bin/test";
 	_env_vars["SCRIPT_FILENAME"] = _script_path;
 
-	_env_vars["SERVER_NAME"] = "localhost";
-	_env_vars["SERVER_PORT"] = "8080";
-	_env_vars["SERVER_PROTOCOL"] = "HTTP/1.1";
-	_env_vars["SERVER_SOFTWARE"] = "webserv/1.0";
-	
-	// PHP CGI security: Required for php-cgi to execute
-	_env_vars["REDIRECT_STATUS"] = "200";
+	_env_vars["AUTH_TYPE"] = "";
+	_env_vars["REMOTE_IDENT"] = "";
+	_env_vars["REMOTE_USER"] = "";
 
-	// Set defaults if not already set
-	if (_env_vars.find("REQUEST_METHOD") == _env_vars.end()) {
-		_env_vars["REQUEST_METHOD"] = "GET";
-	}
-	if (_env_vars.find("QUERY_STRING") == _env_vars.end()) {
-		_env_vars["QUERY_STRING"] = "";
-	}
+	_env_vars["REDIRECT_STATUS"] = "200";
 }
 
 void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
@@ -82,7 +117,6 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 		argv[2] = nullptr;
 		execve(argv[0], (char**)argv, envp.data());
 	} else {
-		// Assume executable script with shebang
 		argv[0] = _script_path.c_str();
 		argv[1] = nullptr;
 		execve(argv[0], (char**)argv, envp.data());
@@ -145,7 +179,7 @@ int	CGIexecutor::execute() {
 			kill(pid, SIGKILL);
 			waitpid(pid, NULL, 0);
 			close(pipe_out[0]);
-			std::cout << "\n=== CGI TIMEOUT ===" << std::endl;
+			std::cout << "\n=== CGI Exit Code: 504 (Gateway Timeout) ===" << std::endl;
 			return 504;
 		}
 
