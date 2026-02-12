@@ -22,12 +22,11 @@ class CGIconfig {
 		int			timeout;
 
 		CGIconfig(const std::string &path,
-				  const std::string &query = "",
-				  const std::string &post = "",
-				  int timeout_sec = 10)
-			: script_path(path), query_string(query), post_data(post), timeout(timeout_sec) {};
+				  const std::string &query,
+				  const std::string &post,
+				  int timeout_sec);
 
-		~CGIconfig() {};
+		~CGIconfig();
 };
 
 class CGIexecutor {
@@ -93,14 +92,23 @@ class CGIexecutor {
  * @return The exit status of the CGI script, or -1 on error.
  */
 CGIexecutor*	runCGI(const std::string &script_path,
-				const std::string &query_string = "",
-				const std::string &post_data = "",
-				int timeout = 10);
+				const std::string &query_string,
+				const std::string &post_data,
+				int timeout);
+
+CGIexecutor*	runCGI(const std::string &script_path,
+				const std::string &query_string,
+				const std::string &post_data);
 
 CGIexecutor*	runCGI(const std::string &script_path,
 				const std::string &query_string,
 				int timeout);
 
+CGIexecutor*	runCGI(const std::string &script_path,
+				const std::string &query_string);
+
 CGIexecutor*	runCGI(const std::string &script_path, int timeout);
+
+CGIexecutor*	runCGI(const std::string &script_path);
 
 #endif

@@ -1,5 +1,13 @@
 #include "CGI.hpp"
 
+CGIconfig::CGIconfig(const std::string &path,
+				   const std::string &query,
+				   const std::string &post,
+				   int timeout_sec) :
+	script_path(path), query_string(query), post_data(post), timeout(timeout_sec) {}
+
+CGIconfig::~CGIconfig() {}
+
 CGIexecutor::CGIexecutor(const CGIconfig &config) :
 	_script_path(config.script_path),
 	_query_string(config.query_string),
@@ -262,16 +270,32 @@ CGIexecutor*	runCGI(const std::string &script_path,
 	return cgi;
 }
 
+// Overload: script + query + post (use default timeout)
+CGIexecutor*	runCGI(const std::string &script_path,
+					const std::string &query_string,
+					const std::string &post_data) {
+	return runCGI(script_path, query_string, post_data, 10);
+}
+
 // Overload: script + timeout only
-CGIexecutor*	runCGI(const std::string &script_path, int timeout)
-{
+CGIexecutor*	runCGI(const std::string &script_path, int timeout) {
 	return runCGI(script_path, "", "", timeout);
 }
 
 // Overload: script + query + timeout (skip post_data)
 CGIexecutor*	runCGI(const std::string &script_path,
-		   const std::string &query_string,
-		   int timeout)
-{
+					const std::string &query_string,
+					int timeout) {
 	return runCGI(script_path, query_string, "", timeout);
+}
+
+// Overload: script + query only (use default timeout)
+CGIexecutor*	runCGI(const std::string &script_path,
+					const std::string &query_string) {
+	return runCGI(script_path, query_string, "", 10);
+}
+
+// Overload: script only (use defaults)
+CGIexecutor*	runCGI(const std::string &script_path) {
+	return runCGI(script_path, "", "", 10);
 }
