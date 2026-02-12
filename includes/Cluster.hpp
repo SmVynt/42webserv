@@ -28,15 +28,9 @@ struct FDMetadata{
 	FDType		type;			// Purpose of this descriptor (from enum above)
 	time_t		last_activity;	// Timestamp of the last I/O operation for timeout logic
 	int			client_fd;		// Associated client socket (links CGI pipes to specific users)
+	int			timeout_value;	// Timeout limit
 	std::string	write_buffer;	// Buffer for data waiting to be sent when POLLOUT is ready
 	bool		is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
-
-	// Constructor: initializes the structure with safe default values
-	FDMetadata() :	fd(-1),
-					type(FD_LISTENER),
-					last_activity(time(NULL)),
-					client_fd(-1),
-					is_ready_to_close(false) {}
 };
 class Cluster {
 	public:
@@ -56,7 +50,7 @@ class Cluster {
 		void closeConnection(int fd);
 
 		// Utils for pollfds management and metadata
-		void addFD(int fd, FDType type, int client_ref = -1);
+		void addFD(int fd, FDType type, int client_ref, int timeout);
 		void removeFD(int fd);
 		void updateActivity(int fd);
 		void handleTimeout();

@@ -81,7 +81,7 @@ void	Cluster::setupCluster()
 			throw std::runtime_error("listen failed: " + std::string(strerror(error_code)));
 		}
 
-		addFD(socket_fd, FD_LISTENER);
+		addFD(socket_fd, FD_LISTENER, -1, 0);
 		_listen_sockets[socket_fd] = port;
 
 		std::cout << "Listening on port " << port << " (fd: " << socket_fd << ")" << std::endl;
@@ -139,7 +139,10 @@ void Cluster::acceptNewConnection(int listen_fd)
 		std::cerr << "Warning: accept() failed: " << strerror(errno) << std::endl;
 		return;
 	}
-	addFD(client_fd, FD_CLIENT);
+	// TO DO: Take timeout from ServerConfig
+	// int timeout = _config_data[config_index_for_port].client_timeout;
+	// Temperorly hardcoded
+	addFD(client_fd, FD_CLIENT, -1, 60);
 	std::cout << "New client connected: FD " << client_fd << std::endl;
 }
 
@@ -177,7 +180,7 @@ void Cluster::closeConnection(int fd)
 	std::cout << "[Cluster] Connection closed on FD: " << fd << std::endl;
 }
 
-void Cluster::addFD(int fd, FDType type, int client_ref)
+void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 {
 	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
 		return;
@@ -187,12 +190,15 @@ void Cluster::addFD(int fd, FDType type, int client_ref)
 	pfd.revents = 0;
 	_pollfds.push_back(pfd);
 
-	FDMetadata fdmetadata;
-	fdmetadata.fd = fd;
-	fdmetadata.type = type;
-	fdmetadata.client_fd = client_ref;
-	fdmetadata.last_activity = time(NULL);
-	_fd_table[fd] = fdmetadata;
+	FDMetadata metadata;
+	metadata.fd = fd;
+	metadata.type = type;
+	metadata.client_fd = client_ref;
+	metadata.last_activity = time(NULL);
+	metadata.timeout_value = timeout;
+	metadata.is_ready_to_close = false;
+
+	_fd_table[fd] = metadata;
 }
 
 void Cluster::removeFD(int fd)
@@ -218,8 +224,6 @@ void Cluster::updateActivity(int fd)
 void Cluster::handleTimeout()
 {
 	time_t now = time(NULL);
-	//  TO DO: Hardcoded take timeout_limit from ServerConfig
-	int timeout_limits = 60;
 	for (auto it = _fd_table.begin(); it != _fd_table.end();){
 		int fd = it->first;
 		FDMetadata& metadata = it->second;
@@ -228,10 +232,11 @@ void Cluster::handleTimeout()
 			++it;
 			continue;
 		}
-		if (now - metadata.last_activity > timeout_limits){
-			std::cout << "Timeout reached for FD: " << fd << ". Closing connection." << std::endl;
-			it++;
-			closeConnection(fd);
+		if (now - metadata.last_activity > metadata.timeout_value){
+			std::cout << "Timeout reached for FD: " << it->first << std::endl;
+			int fd_to_close = fd;
+			++it;
+			closeConnection(fd_to_close);
 		} else {
 			++it;
 		}
