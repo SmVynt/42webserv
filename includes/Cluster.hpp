@@ -13,6 +13,7 @@
 #include "Config.hpp"
 #include "Request.hpp"
 #include "VirtualServer.hpp"
+#include <algorithm>
 
 enum FDType{
 	FD_LISTENER,	// Listening socket: accepts new incoming connections

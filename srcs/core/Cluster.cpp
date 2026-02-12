@@ -188,3 +188,64 @@ void Cluster::closeConnection(size_t pollfd_index)
 	// _requests.erase(fd);
 	std::cout << "[Cluster] Connection closed on FD: " << fd << std::endl;
 }
+
+void Cluster::addFD(int fd, FDType type, int client_ref)
+{
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
+		return;
+	struct pollfd pfd;
+	pfd.fd = fd;
+	pfd.events = POLLIN;
+	pfd.revents = 0;
+	_pollfds.push_back(pfd);
+
+	FDMetadata fdmetadata;
+	fdmetadata.fd = fd;
+	fdmetadata.type = type;
+	fdmetadata.client_fd = client_ref;
+	fdmetadata.last_activity = time(NULL);
+	_fd_table[fd] = fdmetadata;
+}
+
+void Cluster::removeFD(int fd)
+{
+	for (auto it = _pollfds.begin(); it != _pollfds.end(); ++it){
+		if (it->fd == fd){
+			_pollfds.erase(it);
+			break;
+		}
+	}
+	_fd_table.erase(fd);
+
+	close(fd);
+}
+
+void Cluster::updateActivity(int fd)
+{
+	if (auto it = _fd_table.find(fd); it != _fd_table.end()){
+		it->second.last_activity = time(NULL);
+	}
+}
+
+void Cluster::handleTimeout()
+{
+	time_t now = time(NULL);
+	//  TO DO: Hardcoded take timeout_limit from ServerConfig
+	int timeout_limits = 60;
+	for (auto it = _fd_table.begin(); it != _fd_table.end();){
+		int fd = it->first;
+		FDMetadata& metadata = it->second;
+
+		if (metadata.type == FD_LISTENER){
+			++it;
+			continue;
+		}
+		if (now - metadata.last_activity > timeout_limits){
+			std::cout << "Timeout reached for FD: " << fd << ". Closing connection." << std::endl;
+			it++;
+			closeConnection(fd);
+		} else {
+			++it;
+		}
+	}
+}
