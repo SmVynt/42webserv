@@ -10,11 +10,33 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <cstring>
-#include <poll.h>
 #include "Config.hpp"
 #include "Request.hpp"
 #include "VirtualServer.hpp"
 
+enum FDType{
+	FD_LISTENER,	// Listening socket: accepts new incoming connections
+	FD_CLIENT,		// Client socket: handles HTTP requests and responses
+	FD_CGI_IN,		// CGI input pipe: used to write POST body to the script's stdin
+	FD_CGI_OUT,		// CGI output pipe: used to read the script's execution result
+	FD_FILE			// Static file: used for non-blocking file I/O operations
+};
+
+struct FDMetadata{
+	int			fd;				// The file descriptor number
+	FDType		type;			// Purpose of this descriptor (from enum above)
+	time_t		last_activity;	// Timestamp of the last I/O operation for timeout logic
+	int			client_fd;		// Associated client socket (links CGI pipes to specific users)
+	std::string	write_buffer;	// Buffer for data waiting to be sent when POLLOUT is ready
+	bool		is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
+
+	// Constructor: initializes the structure with safe default values
+	FDMetadata() :	fd(-1),
+					type(FD_LISTENER),
+					last_activity(time(NULL)),
+					client_fd(-1),
+					is_ready_to_close(false) {}
+};
 class Cluster {
 	public:
 		Cluster();
@@ -30,9 +52,15 @@ class Cluster {
 		bool handleClientRequest(size_t pollfd_index);
 		void closeConnection(size_t pollfd_index);
 
+		void addFD(int fd, FDType type, int client_ref = -1);
+		void removeFD(int fd);
+		void updateActivity(int fd);
+		void handleTimeout();
+
 		std::vector<VirtualServer>	_servers;
 		std::vector<ServerConfig>	_config_data;
 		std::vector<struct pollfd>	_pollfds;
+		std::map<int, FDMetadata>	_fd_table;
 		std::map<int, int>			_listen_sockets;
 		std::map<int, Request>		_requests;
 };
