@@ -1,4 +1,5 @@
 #include "Config.hpp"
+#include "Request.hpp"
 
 void printConfig(const std::vector<ServerConfig> &servers) {
 	std::cout << "\n========== CONFIGURATION DEBUG ==========" << std::endl;
@@ -101,4 +102,36 @@ std::vector<std::string> tokenize(const std::string &filename) {
 		}
 	}
 	return tokens;
+}
+
+void reqHardcode() {
+	Request request;
+
+	std::vector<std::string> chunks;
+
+	chunks.push_back("POST /upload/image.jpg HT");
+
+	chunks.push_back("TP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\n");
+
+	chunks.push_back("Hello World!");
+
+	std::cout << "--- Starting Simulation ---" << std::endl;
+
+	for (size_t i = 0; i < chunks.size(); ++i) {
+		std::cout << "\n>>> Receiving chunk " << i << "..." << std::endl;
+		request.consume(chunks[i]);
+
+		if (request.isFinished()) {
+			std::cout << "[SUCCESS] Request fully parsed!" << std::endl;
+		} else {
+			std::cout << "[WAITING] More data needed..." << std::endl;
+		}
+	}
+	std::cout << "\n--- Final Result ---" << std::endl;
+	std::cout << "Method:  " << request.getMethod() << std::endl;
+	std::cout << "Path:    " << request.getPath() << std::endl;
+	std::cout << "Version: " << request.getHttpVersion() << std::endl;
+	std::cout << "Body:    [" << request.getBody() << "]" << std::endl;
+	std::cout << "Headers count: " << request.getHeaders().size() << std::endl;
+
 }

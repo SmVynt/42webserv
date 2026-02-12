@@ -4,6 +4,8 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <iostream>
+#include <sstream>
 
 class Request {
 public:
@@ -21,10 +23,13 @@ private:
 
 public:
 	Request();
+	~Request();
 
-	void consume(const std::string &new_chunk);
+	void	consume(const std::string &new_chunk);
+	void	parseRequestLine(const std::string &line);
+	void	parseHeaders(const std::string &line);
 
-	bool isFinished() const;
+	bool	isFinished() const;
 
 	std::string	getMethod() const;
 	std::string	getPath() const;
@@ -34,5 +39,7 @@ public:
 
 
 };
+
+void reqHardcode();
 
 #endif
