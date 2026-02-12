@@ -119,6 +119,16 @@ void	Cluster::run()
 					}
 				}
 			}
+
+			if (revents & POLLOUT){
+				if (_fd_table[fd].type == FD_CLIENT){
+					if (handleClientResponse(fd) == true){
+						--i;
+						continue;
+					}
+				}
+			}
+
 			if (revents & (POLLHUP | POLLERR | POLLNVAL)){
 				closeConnection(fd);
 				--i;
@@ -156,13 +166,9 @@ bool Cluster::handleClientRequest(int fd)
 		buffer[byte_reads] = '\0';
 		std::cout << "--- RAW REQUEST FROM CLIENT ---\n" << buffer << "\n-------------------------------" << std::endl;
 		// TO DO: Sasha must create request class that will revieve and handle data from this buffer
-		std::string dummyResponse = "HTTP/1.1 200 OK\r\nContent-Length: 19\r\n\r\nHello from Cluster!";
+		_fd_table[fd].write_buffer = "HTTP/1.1 200 OK\r\nContent-Length: 19\r\n\r\nHello from Cluster!";
 
-		send(fd, dummyResponse.c_str(), dummyResponse.length(), 0);
-
-		// std::cout << "--- Got request from FD " << client_fd << " ---" << std::endl;
-		// ! Temperorly ! Delete after Sasha creates Request class
-		// this->closeConnection(pollfd_index);
+		updatePollEvents(fd, POLLOUT);
 		return false;
 	} else {
 		closeConnection(fd);
@@ -178,6 +184,37 @@ void Cluster::closeConnection(int fd)
 	// TO DO: After Request implimentation
 	// _requests.erase(fd);
 	std::cout << "[Cluster] Connection closed on FD: " << fd << std::endl;
+}
+
+void Cluster::updatePollEvents(int fd, short events)
+{
+	for (auto& pfd : _pollfds) {
+		if (pfd.fd == fd) {
+			pfd.events = events;
+			break;
+		}
+	}
+}
+
+bool Cluster::handleClientResponse(int fd)
+{
+	std::string& response = _fd_table[fd].write_buffer;
+	if (response.empty()){
+		updatePollEvents(fd, POLLIN);
+		return false;
+	}
+	// TO DO: Check if everything was sent or not. If yes delete only sent data
+	int bytes_sent = send(fd, response.c_str(), response.length(), 0);
+
+	if (bytes_sent >= 0){
+		response.clear();
+
+		updatePollEvents(fd, POLLIN);
+		return false;
+	} else {
+		closeConnection(fd);
+		return true;
+	}
 }
 
 void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)

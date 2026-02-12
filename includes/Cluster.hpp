@@ -29,6 +29,7 @@ struct FDMetadata{
 	time_t		last_activity;	// Timestamp of the last I/O operation for timeout logic
 	int			client_fd;		// Associated client socket (links CGI pipes to specific users)
 	int			timeout_value;	// Timeout limit
+	std::string	read_buffer;	//
 	std::string	write_buffer;	// Buffer for data waiting to be sent when POLLOUT is ready
 	bool		is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
 };
@@ -48,6 +49,8 @@ class Cluster {
 		void acceptNewConnection(int listen_fd);
 		bool handleClientRequest(int fd);
 		void closeConnection(int fd);
+		void updatePollEvents(int fd, short events);
+		bool handleClientResponse(int fd);
 
 		// Utils for pollfds management and metadata
 		void addFD(int fd, FDType type, int client_ref, int timeout);
