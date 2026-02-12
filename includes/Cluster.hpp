@@ -52,8 +52,8 @@ class Cluster {
 	private:
 		// Utils for run()
 		void acceptNewConnection(int listen_fd);
-		bool handleClientRequest(size_t pollfd_index);
-		void closeConnection(size_t pollfd_index);
+		bool handleClientRequest(int fd);
+		void closeConnection(int fd);
 
 		// Utils for pollfds management and metadata
 		void addFD(int fd, FDType type, int client_ref = -1);
