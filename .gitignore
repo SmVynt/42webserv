@@ -28,3 +28,7 @@ www/uploads/*
 
 # Test files
 test/
+
+# CGI testing
+CGI_DEVELOPMENT.md
+cgi_test

@@ -1,6 +1,7 @@
 #include <iostream>
-#include "Server.hpp"
 #include "Request.hpp"
+#include "VirtualServer.hpp"
+#include "Cluster.hpp"
 
 int main(int argc, char **argv) {
 	if (argc > 2) {
@@ -14,6 +15,13 @@ int main(int argc, char **argv) {
 		printConfig(servers);
 		// reqHardcode();
 		// reqChunkedHardcode();
+
+		Cluster webserv(servers);
+
+		webserv.setupCluster();
+
+		webserv.run();
+
 	} catch(std::exception &e){
 		std::cout << e.what() << std::endl;
 	}
