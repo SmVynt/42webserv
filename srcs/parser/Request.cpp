@@ -6,6 +6,8 @@ Request::~Request() {}
 
 bool	Request::isFinished() const { return _state == DONE || _state == ERROR; }
 
+void	Request::setMaxBodySize(const unsigned long &num) { _max_body_size = num; }
+
 std::string	Request::getBody() const {return _body; }
 std::string	Request::getMethod() const {return _method; }
 std::string	Request::getHttpVersion() const {return _http_version; }
@@ -36,9 +38,10 @@ void	Request::consume(const std::string &new_chunk){
 			std::string line = _raw_storage.substr(0, pos);
 			_raw_storage.erase(0, pos + 2);
 			if (line.empty()) {
-				if (_headers.count("content-length"))
-					_state = BODY;
-				else if (_headers.count("transfer-encoding") && _headers["transfer-encoding"] == "chunked")
+				validate();
+				if (_headers.count("transfer-encoding") && _headers["transfer-encoding"] == "chunked")
+					_state = CHUNK_SIZE;
+				else if (_headers.count("content-length"))
 					_state = BODY;
 				else
 					_state = DONE;
@@ -61,6 +64,33 @@ void	Request::consume(const std::string &new_chunk){
 				_state = DONE;
 			}
 			break;
+		}
+		else if (_state == CHUNK_SIZE){
+			size_t pos = _raw_storage.find("\r\n");
+			if (pos == std::string::npos)
+				break;
+			std::string hex_str = _raw_storage.substr(0, pos);
+			try{
+				_current_chunk_size = std::stoul(hex_str, nullptr, 16);
+			} catch(...){
+				_state = ERROR;
+				_error_code = 600;
+				break;
+			}
+			_raw_storage.erase(0, pos + 2);
+			_state = (_current_chunk_size == 0) ? DONE : CHUNK_DATA;
+		}
+		else if (_state == CHUNK_DATA){
+			if (_raw_storage.size() < _current_chunk_size + 2)
+				break;
+			if (_raw_storage.substr(_current_chunk_size, 2) != "\r\n") {
+				_state = ERROR;
+				_error_code = 400;
+				break;
+			}
+			_body.append(_raw_storage.substr(0, _current_chunk_size));
+			_raw_storage.erase(0, _current_chunk_size + 2);
+			_state = CHUNK_SIZE;
 		}
 		else
 			break;
@@ -111,4 +141,25 @@ void	Request::parseRequestLine(const std::string &line){
 	_path = path;
 	_http_version = version;
 
+}
+
+void	Request::validate(){
+	if (_headers.find("host") == _headers.end()){
+		_state = ERROR;
+		_error_code = 400;
+		return ;
+	}
+	if (_headers.count("content-length")){
+		try{
+			unsigned long cl = std::stoul(_headers["content-length"]);
+			if (cl > _max_body_size){
+				_state = ERROR;
+				_error_code = 413;
+				return;
+			}
+		} catch (...){
+			_state = ERROR;
+			_error_code = 400;
+		}
+	}
 }

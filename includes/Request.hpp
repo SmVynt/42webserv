@@ -9,17 +9,22 @@
 
 class Request {
 public:
-	enum State { METHOD_LINE, HEADERS, BODY, DONE, ERROR };
+	enum State { METHOD_LINE, HEADERS, BODY, CHUNK_SIZE, CHUNK_DATA, DONE, ERROR };
 
 private:
 	State		_state;
 	std::string	_raw_storage;
+	int			_error_code;
+
+	unsigned long	_max_body_size;
+	size_t			_current_chunk_size;
 
 	std::string	_method;
 	std::string	_path;
 	std::string	_http_version;
 	std::string	_body;
 	std::map<std::string, std::string>	_headers;
+
 
 public:
 	Request();
@@ -28,8 +33,11 @@ public:
 	void	consume(const std::string &new_chunk);
 	void	parseRequestLine(const std::string &line);
 	void	parseHeaders(const std::string &line);
+	void	validate();
 
 	bool	isFinished() const;
+
+	void	setMaxBodySize(const unsigned long &num);
 
 	std::string	getMethod() const;
 	std::string	getPath() const;
@@ -41,5 +49,6 @@ public:
 };
 
 void reqHardcode();
+void reqChunkedHardcode();
 
 #endif

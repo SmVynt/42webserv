@@ -135,3 +135,29 @@ void reqHardcode() {
 	std::cout << "Headers count: " << request.getHeaders().size() << std::endl;
 
 }
+
+void reqChunkedHardcode() {
+	Request request;
+	std::vector<std::string> chunks;
+
+	chunks.push_back("POST /test HTTP/1.1\r\n");
+	chunks.push_back("Host: localhost\r\n");
+	chunks.push_back("Transfer-Encoding: chunked\r\n\r\n");
+
+	chunks.push_back("5\r\nHello\r\n");
+
+	chunks.push_back("7\r\n World!\r\n");
+
+	chunks.push_back("0\r\n\r\n");
+
+	for (const auto& c : chunks) {
+		request.consume(c);
+	}
+
+	std::cout << "\n--- Final Result ---" << std::endl;
+	std::cout << "Method:  " << request.getMethod() << std::endl;
+	std::cout << "Path:    " << request.getPath() << std::endl;
+	std::cout << "Version: " << request.getHttpVersion() << std::endl;
+	std::cout << "Body:    [" << request.getBody() << "]" << std::endl;
+	std::cout << "Headers count: " << request.getHeaders().size() << std::endl;
+}

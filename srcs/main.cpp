@@ -12,7 +12,8 @@ int main(int argc, char **argv) {
 		Config parser(tokens);
 		std::vector<ServerConfig> servers = parser.parse();
 		printConfig(servers);
-		reqHardcode();
+		// reqHardcode();
+		// reqChunkedHardcode();
 	} catch(std::exception &e){
 		std::cout << e.what() << std::endl;
 	}
