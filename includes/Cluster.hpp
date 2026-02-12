@@ -44,14 +44,17 @@ class Cluster {
 		Cluster(const Cluster& other);
 		Cluster& operator=(const Cluster& other);
 		~Cluster();
-
+		// Method that setups initial settings for sockets
 		void	setupCluster();
+		// Main loop with poll()
 		void	run();
 	private:
+		// Utils for run()
 		void acceptNewConnection(int listen_fd);
 		bool handleClientRequest(size_t pollfd_index);
 		void closeConnection(size_t pollfd_index);
 
+		// Utils for pollfds management and metadata
 		void addFD(int fd, FDType type, int client_ref = -1);
 		void removeFD(int fd);
 		void updateActivity(int fd);
@@ -61,6 +64,8 @@ class Cluster {
 		std::vector<ServerConfig>	_config_data;
 		std::vector<struct pollfd>	_pollfds;
 		std::map<int, FDMetadata>	_fd_table;
+		// Map for socket connection between configs or servers
 		std::map<int, int>			_listen_sockets;
+		// Map to store request status of each client
 		std::map<int, Request>		_requests;
 };
