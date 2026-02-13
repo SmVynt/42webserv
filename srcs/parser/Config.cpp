@@ -58,6 +58,11 @@ ServerConfig Config::parseServer() {
 			int code = std::stoi(_tokens[_pos++]);
 			config.error_pages[code] = _tokens[_pos++];
 		}
+		else if (key == "client_timeout"){
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Unexpected EOF after host");
+			config.client_timeout = std::stoi(_tokens[_pos++]);
+		}
 		else if (key == "client_max_body_size") {
 			if (_pos >= _tokens.size())
 				throw std::runtime_error("Missing value for client_max_body_size");
