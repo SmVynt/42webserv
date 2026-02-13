@@ -11,13 +11,14 @@ private:
 	std::string	_body;
 	std::map<std::string, std::string>	_headers;
 
-	static std::map<int, std::string>	_status_messages;
+	const static std::map<int, std::string>	_status_messages;
+	static std::map<int, std::string>	_initStatusMessages();
 
 public:
 	Response();
 	void setStatusCode(int code);
-	void setBody(const std::string& body);
-	void addHeader(const std::string& key, const std::string& value);
+	void setBody(const std::string &body);
+	void addHeader(const std::string &key, const std::string &value);
 	std::string build();
 };
 
