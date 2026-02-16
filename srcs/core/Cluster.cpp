@@ -188,9 +188,13 @@ bool Cluster::handleClientRequest(int fd)
 
 void Cluster::closeConnection(int fd)
 {
+	if (_fd_table.count(fd)){
+		_fd_table.at(fd).read_buffer.clear();
+		_fd_table.at(fd).write_buffer.clear();
+	}
 	removeFD(fd);
 
-	// TO DO: After Request implimentation
+	// TO DO: When i will stat work with map of requests
 	// _requests.erase(fd);
 	std::cout << "[Cluster] Connection closed on FD: " << fd << std::endl;
 }
