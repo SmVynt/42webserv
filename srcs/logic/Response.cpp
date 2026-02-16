@@ -32,13 +32,13 @@ std::string	Response::build(){
 
 	res << _version << " " << _status_code << " " << _status_messages.at(_status_code) << "\r\n";
 	if (!_body.empty() && _headers.find("Content-Length") == _headers.end()){
-		addHeader("Content-Lenght", std::to_string(_body.size()));
+		addHeader("Content-Length", std::to_string(_body.size()));
 	}
 
 	addHeader("Server", "Webslave");
 
 	for (std::map<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); it++){
-		res << it->first << ":" << it->second << "\r\n";
+		res << it->first << ": " << it->second << "\r\n";
 	}
 
 	res << "\r\n";
@@ -46,4 +46,26 @@ std::string	Response::build(){
 	res << _body;
 
 	return res.str();
+}
+
+void	Response::prepare(){
+	_full_response = build();
+	_bytes_sent = 0;
+}
+
+int		Response::sendResponse(int fd){
+	if (_full_response.empty())
+		prepare();
+	const char	*remaining_data = _full_response.c_str() + _bytes_sent;
+	size_t		remaining_size = _full_response.size() - _bytes_sent;
+	ssize_t		sent = send(fd, remaining_data, remaining_size, 0);
+
+	if (sent <= 0)
+		return sent;
+
+	_bytes_sent += sent;
+
+	if (_bytes_sent == _full_response.size())
+		return 1;
+	return 0;
 }
