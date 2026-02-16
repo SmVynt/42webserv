@@ -210,15 +210,22 @@ bool Cluster::handleClientResponse(int fd)
 		return false;
 	}
 	// TO DO: Check if everything was sent or not. If yes delete only sent data
-	int bytes_sent = send(fd, response.c_str(), response.length(), 0);
+	ssize_t bytes_sent = send(fd, response.c_str(), response.length(), 0);
 
-	if (bytes_sent >= 0){
-		response.clear();
-
-		updatePollEvents(fd, POLLIN);
+	if (bytes_sent > 0){
+		response.erase(0, bytes_sent);
+		if (response.empty()){
+			updatePollEvents(fd, POLLIN);
+		}
 		return false;
-	} else {
+	} else if (bytes_sent == 0){
 		closeConnection(fd);
+		return true;
+	} else {
+		if (errno != EWOULDBLOCK && errno != EAGAIN) {
+			closeConnection(fd);
+			return true;
+		}
 		return true;
 	}
 }
