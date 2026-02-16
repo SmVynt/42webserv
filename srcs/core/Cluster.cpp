@@ -149,10 +149,16 @@ void Cluster::acceptNewConnection(int listen_fd)
 		std::cerr << "Warning: accept() failed: " << strerror(errno) << std::endl;
 		return;
 	}
-	// TO DO: Take timeout from ServerConfig
-	// int timeout = _config_data[config_index_for_port].client_timeout;
-	// Temperorly hardcoded
-	addFD(client_fd, FD_CLIENT, -1, 60);
+	int port = _listen_sockets.at(listen_fd);
+
+	int timeout = 60;
+	for (const auto& config : _config_data){
+		if (config.port == port){
+			timeout = config.client_timeout;
+			break;
+		}
+	}
+	addFD(client_fd, FD_CLIENT, -1, timeout);
 	std::cout << "New client connected: FD " << client_fd << std::endl;
 }
 
