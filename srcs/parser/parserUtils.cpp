@@ -14,7 +14,10 @@ void printConfig(const std::vector<ServerConfig> &servers) {
 		std::cout << "  Server Names: ";
 		for (std::vector<std::string>::const_iterator it = srv.server_names.begin(); it != srv.server_names.end(); ++it)
 			std::cout << *it << " ";
+
 		std::cout << "\n  Max Body:     " << srv.client_max_body_size << " bytes" << std::endl;
+		std::cout << "  Timeout:      " << srv.client_timeout << " seconds" << std::endl;
+
 
 		std::cout << "  Error Pages:  " << std::endl;
 		for (std::map<int, std::string>::const_iterator it = srv.error_pages.begin(); it != srv.error_pages.end(); ++it) {
