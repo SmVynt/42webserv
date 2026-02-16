@@ -167,14 +167,17 @@ bool Cluster::handleClientRequest(int fd)
 {
 	char buffer[4096];
 
-	int byte_reads = recv(fd, buffer, sizeof(buffer) - 1, 0);
-	if (byte_reads > 0){
-		buffer[byte_reads] = '\0';
-		std::cout << "--- RAW REQUEST FROM CLIENT ---\n" << buffer << "\n-------------------------------" << std::endl;
-		// TO DO: Sasha must create request class that will revieve and handle data from this buffer
-		_fd_table[fd].write_buffer = "HTTP/1.1 200 OK\r\nContent-Length: 19\r\n\r\nHello from Cluster!";
+	ssize_t byte_reads = recv(fd, buffer, sizeof(buffer) - 1, 0);
 
-		updatePollEvents(fd, POLLOUT);
+	if (byte_reads > 0){
+		_fd_table[fd].read_buffer.append(buffer, byte_reads);
+		std::cout << "--- RAW REQUEST FROM CLIENT ---\n" << buffer << "\n-------------------------------" << std::endl;
+		// TO DO: Change to what Sasha created in Requset.cpp
+	if (_fd_table[fd].read_buffer.find("\r\n\r\n") != std::string::npos) {
+			_fd_table[fd].write_buffer = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello Cluster";
+			_fd_table[fd].read_buffer.clear();
+			updatePollEvents(fd, POLLOUT);
+		}
 		return false;
 	} else {
 		closeConnection(fd);
