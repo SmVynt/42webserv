@@ -48,4 +48,46 @@ fclean: clean
 
 re: fclean all
 
-.PHONY: all clean fclean re
+# Testing
+test: all
+	@echo "$(YELLOW)Running complete test suite...$(RESET)"
+	@cd tests && bash test_suite.sh
+	@echo "$(GREEN)Tests completed!$(RESET)"
+
+test-load: all
+	@echo "$(YELLOW)Running load tests...$(RESET)"
+	@cd tests/load && bash siege_test.sh && bash ab_test.sh && bash concurrent_test.sh
+	@echo "$(GREEN)Load tests completed!$(RESET)"
+
+test-memory: all
+	@echo "$(YELLOW)Running memory leak tests...$(RESET)"
+	@cd tests/memory && bash valgrind_test.sh
+	@echo "$(GREEN)Memory tests completed!$(RESET)"
+
+test-edge: all
+	@echo "$(YELLOW)Running edge case tests...$(RESET)"
+	@cd tests/edge_cases && bash malformed_requests.sh && bash boundary_tests.sh && bash protocol_edge_cases.sh
+	@echo "$(GREEN)Edge case tests completed!$(RESET)"
+
+test-static: all
+	@echo "$(YELLOW)Running static file serving tests...$(RESET)"
+	@cd tests/static && bash serve_test.sh
+	@echo "$(GREEN)Static file tests completed!$(RESET)"
+
+test-nginx: all
+	@echo "$(YELLOW)Running NGINX comparison...$(RESET)"
+	@cd tests/comparison && bash nginx_setup.sh && bash compare_results.sh
+	@echo "$(GREEN)Comparison completed!$(RESET)"
+
+test-quick: all
+	@echo "$(YELLOW)Running quick validation tests...$(RESET)"
+	@cd tests/static && bash serve_test.sh
+	@cd tests/edge_cases && bash malformed_requests.sh
+	@echo "$(GREEN)Quick tests completed!$(RESET)"
+
+test-cgi:
+	@echo "$(YELLOW)Running CGI tests...$(RESET)"
+	@cd tests && bash test_cgi.sh
+	@echo "$(GREEN)CGI tests completed!$(RESET)"
+
+.PHONY: all clean fclean re test test-load test-memory test-edge test-static test-nginx test-quick test-cgi
