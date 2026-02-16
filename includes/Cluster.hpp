@@ -14,6 +14,7 @@
 #include "Request.hpp"
 #include "VirtualServer.hpp"
 #include <algorithm>
+#include "utils.hpp"
 
 enum FDType{
 	FD_LISTENER,	// Listening socket: accepts new incoming connections
@@ -57,6 +58,9 @@ class Cluster {
 		void removeFD(int fd);
 		void updateActivity(int fd);
 		void handleTimeout();
+
+		// Response
+		Response generateErrorResponse(int code, int config_index);
 
 		std::vector<VirtualServer>	_servers;
 		std::vector<ServerConfig>	_config_data;

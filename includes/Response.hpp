@@ -20,16 +20,22 @@ private:
 	const static std::map<int, std::string>	_status_messages;
 	static std::map<int, std::string>	_initStatusMessages();
 
+	std::string	build();
+	void		prepare();
+
+
 public:
 	Response();
 	~Response();
 	void setStatusCode(int code);
 	void setBody(const std::string &body);
 	void addHeader(const std::string &key, const std::string &value);
-	std::string build();
 
-	void	prepare();
 	int		sendResponse(int fd);
+
+	static std::string	getStatusMessage(int code);
+	void				makeDefaultError(int code);
+
 };
 
 #endif

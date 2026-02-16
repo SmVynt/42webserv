@@ -69,3 +69,18 @@ int		Response::sendResponse(int fd){
 		return 1;
 	return 0;
 }
+
+std::string	Response::getStatusMessage(int code){
+	if (_status_messages.count(code))
+		return _status_messages.at(code);
+	return "Unknown Error";
+}
+
+void Response::makeDefaultError(int code) {
+	_status_code = code;
+	std::string msg = getStatusMessage(code);
+	_body = "<html><head><title>" + std::to_string(code) + " " + msg + "</title></head>"
+			"<body><center><h1>" + std::to_string(code) + " " + msg + "</h1></center>"
+			"<hr><center>Webslave/1.0</center></body></html>";
+	addHeader("Content-Type", "text/html");
+}

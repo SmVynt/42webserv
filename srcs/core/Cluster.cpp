@@ -279,3 +279,22 @@ void Cluster::handleTimeout()
 		}
 	}
 }
+
+Response Cluster::generateErrorResponse(int code, int config_index) {
+	Response res;
+	const ServerConfig& config = _config_data[config_index];
+
+	if (config.error_pages.count(code)) {
+		std::string path = config.error_pages.at(code);
+		std::string custom_body = loadFile(path);
+		if (!custom_body.empty()) {
+			res.setStatusCode(code);
+			res.setBody(custom_body);
+			res.addHeader("Content-Type", "text/html");
+			return res;
+		}
+	}
+
+	res.makeDefaultError(code);
+	return res;
+}
