@@ -36,9 +36,10 @@ echo "  6) Run static file serving tests"
 echo "  7) Compare with NGINX"
 echo "  8) Open browser test page"
 echo "  9) Install missing test dependencies"
+echo "  x) Stop running webserv server"
 echo "  0) Exit"
 echo ""
-read -p "Enter your choice [0-10]: " choice
+read -p "Enter your choice: " choice
 
 case $choice in
     1)
@@ -128,7 +129,7 @@ case $choice in
         echo -e "${GREEN}Ready for browser testing!${NC}"
         echo ""
         echo "Open in your browser:"
-        echo "  ${BLUE}http://localhost:8080/upload_test.html${NC}"
+        echo -e "  ${BLUE}http://localhost:8080/upload_test.html ${NC}"
         echo ""
         echo "Manual testing checklist at:"
         echo "  tests/browser/manual_checklist.md"
@@ -166,6 +167,32 @@ case $choice in
                 echo ""
                 echo -e "${GREEN}✓ Dependencies installed!${NC}"
             fi
+        fi
+        ;;
+
+    x)
+        echo ""
+        echo -e "${YELLOW}Stopping running webserv server...${NC}"
+        echo ""
+
+        # Find running webserv processes
+        WEBSERV_PIDS=$(pgrep -x webserv 2>/dev/null || true)
+
+        if [ -z "$WEBSERV_PIDS" ]; then
+            echo -e "${GREEN}✓${NC} No running webserv processes found"
+        else
+            echo "Found webserv process(es): $WEBSERV_PIDS"
+            kill $WEBSERV_PIDS 2>/dev/null || true
+            sleep 1
+
+            # Check if still running and force kill if needed
+            STILL_RUNNING=$(pgrep -x webserv 2>/dev/null || true)
+            if [ -n "$STILL_RUNNING" ]; then
+                echo "Force killing: $STILL_RUNNING"
+                kill -9 $STILL_RUNNING 2>/dev/null || true
+            fi
+
+            echo -e "${GREEN}✓${NC} webserv stopped"
         fi
         ;;
 
