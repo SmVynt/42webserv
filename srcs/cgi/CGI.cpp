@@ -22,17 +22,6 @@ CGIexecutor::CGIexecutor(const CGIconfig &config) :
 	}
 
 CGIexecutor::~CGIexecutor() {
-	if (_pipe_out_fd >= 0) {
-		close(_pipe_out_fd);
-		_pipe_out_fd = -1;
-	}
-	if (_pipe_in_fd >= 0) {
-		close(_pipe_in_fd);
-		_pipe_in_fd = -1;
-	}
-	if (_child_pid > 0) {
-		waitpid(_child_pid, NULL, WNOHANG);
-	}
 	killChildProcess();
 }
 
@@ -102,13 +91,18 @@ void	CGIexecutor::setupEnvironment() {
 }
 
 void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
-	dup2(pipe_in[0], STDIN_FILENO);
-	dup2(pipe_out[1], STDOUT_FILENO);
+	if (dup2(pipe_in[0], STDIN_FILENO) == -1) {
+		std::cerr << "Error: dup2() failed for stdin" << std::endl;
+		closePipes(pipe_in, pipe_out);
+		exit(1);
+	}
+	if (dup2(pipe_out[1], STDOUT_FILENO) == -1) {
+		std::cerr << "Error: dup2() failed for stdout" << std::endl;
+		closePipes(pipe_in, pipe_out);
+		exit(1);
+	}
 
-	close(pipe_in[0]);
-	close(pipe_in[1]);
-	close(pipe_out[0]);
-	close(pipe_out[1]);
+	closePipes(pipe_in, pipe_out);
 
 	std::vector<char*> envp;
 	for (std::map<std::string, std::string>::iterator it = _env_vars.begin();
@@ -139,6 +133,10 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 
 	// If execve returns, it failed
 	std::cerr << "Error: execve() failed for " << _script_path << std::endl;
+	// Cleanup
+	for (size_t i = 0; i < envp.size(); ++i) {
+		free(envp[i]);
+	}
 	exit(1);
 }
 
@@ -147,8 +145,14 @@ int	CGIexecutor::start() {
 	int		pipe_in[2];
 	int		pipe_out[2];
 
-	if (pipe(pipe_in) == -1 || pipe(pipe_out) == -1) {
+	if (pipe(pipe_in) == -1) {
 		std::cerr << "Error: pipe() failed" << std::endl;
+		return 1;
+	}
+	if (pipe(pipe_out) == -1) {
+		std::cerr << "Error: pipe() failed" << std::endl;
+		safeClose(pipe_in[0]);
+		safeClose(pipe_in[1]);
 		return 1;
 	}
 
@@ -159,53 +163,64 @@ int	CGIexecutor::start() {
 	_child_pid = fork();
 	if (_child_pid == -1) {
 		std::cerr << "Error: fork() failed" << std::endl;
+		closePipes(pipe_in, pipe_out);
 		return 1;
 	}
 
 	if (_child_pid == 0)
 		runChild(pipe_in, pipe_out);
 
-	close(pipe_in[0]);
-	close(pipe_out[1]);
+	safeClose(pipe_in[0]);
+	safeClose(pipe_out[1]);
 
 	// Set output pipe to non-blocking mode
 	int flags = fcntl(_pipe_out_fd, F_GETFL, 0);
-	fcntl(_pipe_out_fd, F_SETFL, flags | O_NONBLOCK);
+	if (flags == -1) {
+		std::cerr << "Error: fcntl() failed to get flags" << std::endl;
+		return 1;
+	}
+	if (fcntl(_pipe_out_fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+		std::cerr << "Error: fcntl() failed to set non-blocking mode" << std::endl;
+		return 1;
+	}
 
 	// Write POST data if exists
 	if (!_post_data.empty()) {
-		write(_pipe_in_fd, _post_data.c_str(), _post_data.length());
+		if (loopingWrite(_pipe_in_fd, _post_data.c_str(), _post_data.length()) == -1) {
+			//cleanup
+			killChildProcess();
+			return 1;
+		}
 	}
-	close(_pipe_in_fd);
-	_pipe_in_fd = -1;
+	safeClose(_pipe_in_fd);
 
 	return 0;
 };
 
-bool	CGIexecutor::readOutput() {
+int	CGIexecutor::readOutput() {
 	char buffer[BUFFER_SIZE];
 	ssize_t bytes_read = read(_pipe_out_fd, buffer, BUFFER_SIZE - 1);
 	if (bytes_read > 0) {
 		buffer[bytes_read] = '\0';
 		_output_buffer += buffer;
 		// std::cout << buffer;
-		return true;
+		// return true;
 	}
-	return false;
+	return bytes_read;
 }
 
 bool	CGIexecutor::checkTimeout() const {
 	return (time(NULL) - _start_time >= _timeout_seconds);
 }
 
-bool CGIexecutor::isComplete() {
+int	CGIexecutor::isComplete() {
 	if (_child_pid == -1)
-		return false;
+		return -1;
 
 	int status;
 	pid_t result = waitpid(_child_pid, &status, WNOHANG);
 	if (result == 0) {
-		return false;
+		return 0; // Still running
 	} else if (result == _child_pid) {
 		if (WIFEXITED(status)) {
 			_exit_status = WEXITSTATUS(status);
@@ -214,10 +229,10 @@ bool CGIexecutor::isComplete() {
 		} else {
 			_exit_status = -1; // Unknown exit status
 		}
-		return true; // Process has completed
+		return 1; // Process has completed
 	} else {
 		std::cerr << "Error: waitpid() failed" << std::endl;
-		return false;
+		return -1; // Error
 	}
 }
 
@@ -239,18 +254,14 @@ int	CGIexecutor::getExitStatus() const {
 
 void	CGIexecutor::killChildProcess() {
 	if (_child_pid > 0) {
-		::kill(_child_pid, SIGKILL);
-		waitpid(_child_pid, NULL, 0);
+		if (::kill(_child_pid, SIGKILL) == -1 && errno != ESRCH) {
+			std::cerr << "Error: kill() failed: " << strerror(errno) << std::endl;
+		}
+		waitpid(_child_pid, NULL, WNOHANG);
 		_child_pid = -1;
 	}
-	if (_pipe_out_fd >= 0) {
-		close(_pipe_out_fd);
-		_pipe_out_fd = -1;
-	}
-	if (_pipe_in_fd >= 0) {
-		close(_pipe_in_fd);
-		_pipe_in_fd = -1;
-	}
+	safeClose(_pipe_out_fd);
+	safeClose(_pipe_in_fd);
 }
 
 // Wrapper function for simple CGI execution

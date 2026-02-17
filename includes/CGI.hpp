@@ -13,6 +13,7 @@
 # include <poll.h> // For poll, used for timeout handling
 # include <fcntl.h> // For fcntl (non-blocking mode)
 # include <ctime> // For timeout handling
+# include "utilsCGI.hpp"
 
 class CGIconfig {
 	public:
@@ -64,8 +65,8 @@ class CGIexecutor {
 
 		int			start();
 		void		setComplete(bool complete);
-		bool		isComplete();
-		bool		readOutput();
+		int			isComplete();
+		int			readOutput();
 		bool		checkTimeout() const;
 		int			getOutputFd() const;
 		int			getExitStatus() const;
