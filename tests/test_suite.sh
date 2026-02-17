@@ -384,13 +384,13 @@ main() {
     if [ $FAILED_TESTS -eq 0 ]; then
         log ""
         log "${GREEN}╔════════════════════════════════════════╗${NC}"
-        log "${GREEN}║     All Tests Passed! 🎉               ║${NC}"
+        log "${GREEN}║     All Tests Passed!                  ║${NC}"
         log "${GREEN}╚════════════════════════════════════════╝${NC}"
         exit 0
     else
         log ""
         log "${RED}╔════════════════════════════════════════╗${NC}"
-        log "${RED}║     Some Tests Failed! 😞              ║${NC}"
+        log "${RED}║     Some Tests Failed!                 ║${NC}"
         log "${RED}╚════════════════════════════════════════╝${NC}"
         exit 1
     fi
