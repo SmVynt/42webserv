@@ -20,9 +20,14 @@ PARSER_SRCS	= parser/Config.cpp \
 LOGIC_SRCS	= logic/Response.cpp \
 				logic/Methods.cpp
 
-CGI_SRCS	= cgi/CGI.cpp
+CGI_SRCS	= cgi/CGI.cpp \
+				cgi/cgiUtils.cpp
 
-SRCS		= $(CORE_SRCS) $(PARSER_SRCS) $(LOGIC_SRCS) $(CGI_SRCS) utils.cpp
+UTILS_SRCS	= utilities/utils.cpp \
+				utilities/Logger.cpp \
+				utilities/ResMonitor.cpp
+
+SRCS		= $(CORE_SRCS) $(PARSER_SRCS) $(LOGIC_SRCS) $(CGI_SRCS) $(UTILS_SRCS)
 
 OBJS		= $(addprefix $(OBJ_DIR), $(SRCS:.cpp=.o))
 
