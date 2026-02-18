@@ -5,8 +5,12 @@
 # include <fstream>
 # include <iostream>
 # include <unistd.h>
+# include "Logger.hpp"
 
 std::string	loadFile(const std::string &path);
-int			loopingWrite(int fd, const char* buffer, size_t length);
+/**
+ * Safely closes a file descriptor and sets it to -1 to prevent accidental reuse.
+ */
+void		safeClose(int &fd);
 
 #endif

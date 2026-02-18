@@ -1,4 +1,4 @@
-#include "utilsCGI.hpp"
+#include "cgiUtils.hpp"
 
 int	loopingWrite(int fd, const char* buffer, size_t length) {
 	size_t	total_written = 0;
@@ -22,14 +22,4 @@ void	closePipes(int pipe_in[2], int pipe_out[2]) {
 	safeClose(pipe_in[1]);
 	safeClose(pipe_out[0]);
 	safeClose(pipe_out[1]);
-}
-
-void	safeClose(int &fd) {
-	if (fd >= 0)
-	{
-		if (close(fd) == -1) {
-			std::cerr << "Error: close() failed" << std::endl;
-		}
-		fd = -1;
-	}
 }

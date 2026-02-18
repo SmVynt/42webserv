@@ -1,8 +1,9 @@
-#ifndef UTILSCGI_HPP
-# define UTILSCGI_HPP
+#ifndef CGIUTILS_HPP
+# define CGIUTILS_HPP
 
 # include <iostream>
 # include <unistd.h>
+# include "utils.hpp"
 
 /**
  * Writes the entire buffer to the specified file descriptor,
@@ -13,9 +14,5 @@ int			loopingWrite(int fd, const char* buffer, size_t length);
  * Closes both ends of the input and output pipes used for CGI communication.
  */
 void		closePipes(int pipe_in[2], int pipe_out[2]);
-/**
- * Safely closes a file descriptor and sets it to -1 to prevent accidental reuse.
- */
-void		safeClose(int &fd);
 
 #endif

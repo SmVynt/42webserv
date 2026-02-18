@@ -54,10 +54,6 @@ void	CGIexecutor::setHttpHeader(const std::string &name, const std::string &valu
 	_env_vars[cgi_name] = value;
 }
 
-// void	CGIexecutor::setContentType(const std::string &type) {
-// 	_env_vars["CONTENT_TYPE"] = type;
-// }
-
 void	CGIexecutor::setEnvKey(const std::string &key, const std::string &value) {
 	if (_env_vars.find(key) == _env_vars.end())
 		_env_vars[key] = value;
@@ -92,12 +88,14 @@ void	CGIexecutor::setupEnvironment() {
 
 void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	if (dup2(pipe_in[0], STDIN_FILENO) == -1) {
-		std::cerr << "Error: dup2() failed for stdin" << std::endl;
+		// std::cerr << "Error: dup2() failed for stdin" << std::endl;
+		Logger::error("Error: dup2() failed for stdin");
 		closePipes(pipe_in, pipe_out);
 		exit(1);
 	}
 	if (dup2(pipe_out[1], STDOUT_FILENO) == -1) {
-		std::cerr << "Error: dup2() failed for stdout" << std::endl;
+		// std::cerr << "Error: dup2() failed for stdout" << std::endl;
+		Logger::error("Error: dup2() failed for stdout");
 		closePipes(pipe_in, pipe_out);
 		exit(1);
 	}
@@ -132,7 +130,8 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	}
 
 	// If execve returns, it failed
-	std::cerr << "Error: execve() failed for " << _script_path << std::endl;
+	// std::cerr << "Error: execve() failed for " << _script_path << std::endl;
+	Logger::error("Error: execve() failed for " + _script_path);
 	// Cleanup
 	for (size_t i = 0; i < envp.size(); ++i) {
 		free(envp[i]);
@@ -146,11 +145,13 @@ int	CGIexecutor::start() {
 	int		pipe_out[2];
 
 	if (pipe(pipe_in) == -1) {
-		std::cerr << "Error: pipe() failed" << std::endl;
+		// std::cerr << "Error: pipe() failed" << std::endl;
+		Logger::error("Error: pipe() failed");
 		return 1;
 	}
 	if (pipe(pipe_out) == -1) {
-		std::cerr << "Error: pipe() failed" << std::endl;
+		// std::cerr << "Error: pipe() failed" << std::endl;
+		Logger::error("Error: pipe() failed");
 		safeClose(pipe_in[0]);
 		safeClose(pipe_in[1]);
 		return 1;
@@ -162,7 +163,8 @@ int	CGIexecutor::start() {
 	_pipe_out_fd = pipe_out[0];
 	_child_pid = fork();
 	if (_child_pid == -1) {
-		std::cerr << "Error: fork() failed" << std::endl;
+		// std::cerr << "Error: fork() failed" << std::endl;
+		Logger::error("Error: fork() failed");
 		closePipes(pipe_in, pipe_out);
 		return 1;
 	}
@@ -176,11 +178,13 @@ int	CGIexecutor::start() {
 	// Set output pipe to non-blocking mode
 	int flags = fcntl(_pipe_out_fd, F_GETFL, 0);
 	if (flags == -1) {
-		std::cerr << "Error: fcntl() failed to get flags" << std::endl;
+		// std::cerr << "Error: fcntl() failed to get flags" << std::endl;
+		Logger::error("Error: fcntl() failed to get flags");
 		return 1;
 	}
 	if (fcntl(_pipe_out_fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-		std::cerr << "Error: fcntl() failed to set non-blocking mode" << std::endl;
+		// std::cerr << "Error: fcntl() failed to set non-blocking mode" << std::endl;
+		Logger::error("Error: fcntl() failed to set non-blocking mode");
 		return 1;
 	}
 
@@ -231,7 +235,8 @@ int	CGIexecutor::isComplete() {
 		}
 		return 1; // Process has completed
 	} else {
-		std::cerr << "Error: waitpid() failed" << std::endl;
+		// std::cerr << "Error: waitpid() failed" << std::endl;
+		Logger::error("Error: waitpid() failed");
 		return -1; // Error
 	}
 }
@@ -255,7 +260,8 @@ int	CGIexecutor::getExitStatus() const {
 void	CGIexecutor::killChildProcess() {
 	if (_child_pid > 0) {
 		if (::kill(_child_pid, SIGKILL) == -1 && errno != ESRCH) {
-			std::cerr << "Error: kill() failed: " << strerror(errno) << std::endl;
+			// std::cerr << "Error: kill() failed: " << strerror(errno) << std::endl;
+			Logger::error("Error: kill() failed: " + std::string(strerror(errno)));
 		}
 		waitpid(_child_pid, NULL, WNOHANG);
 		_child_pid = -1;

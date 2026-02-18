@@ -13,7 +13,8 @@
 # include <poll.h> // For poll, used for timeout handling
 # include <fcntl.h> // For fcntl (non-blocking mode)
 # include <ctime> // For timeout handling
-# include "utilsCGI.hpp"
+# include "cgiUtils.hpp"
+# include "Logger.hpp"
 
 class CGIconfig {
 	public:
