@@ -17,7 +17,10 @@ class RequestHandler{
 		static bool				fileExists(const std::string &path);
 		static const Location	*findLocation(const std::string &uri, const ServerConfig &config);
 
+		static std::string		generateAutoindex(const std::string &path, const std::string &uri);
+
 	public:
 		static Response			handleRequest(Request &req, const ServerConfig &config);
 
 };
+

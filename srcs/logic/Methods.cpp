@@ -73,7 +73,7 @@ Response RequestHandler::handleGet(const Request &req, const Location &loc) {
 				full_path = index_path;
 			else if (loc.autoindex) {
 				res.setStatusCode(200);
-				//res.setBody(generateAutoindex(full_path.string(), request_path));
+				res.setBody(generateAutoindex(full_path.string(), request_path));
 				res.addHeader("Content-Type", "text/html");
 				return res;
 			}
@@ -84,7 +84,7 @@ Response RequestHandler::handleGet(const Request &req, const Location &loc) {
 		}
 		else if (loc.autoindex) {
 			res.setStatusCode(200);
-			//res.setBody(generateAutoindex(full_path.string(), request_path));
+			res.setBody(generateAutoindex(full_path.string(), request_path));
 			res.addHeader("Content-Type", "text/html");
 			return res;
 		} else {
@@ -150,4 +150,29 @@ Response RequestHandler::handleDelete(const Request &req, const Location &loc){
 	(void)req;
 	(void)loc;
 	return res;
+}
+
+std::string	RequestHandler::generateAutoindex(const std::string &path, const std::string &uri){
+	std::string html = "<html><head><title>Index of " + uri + "</title></head><body>";
+	html += "<h1>Index of " + uri + "</h1><hr><pre>";
+
+	try{
+		for (const std::filesystem::directory_entry &entry : std::filesystem::directory_iterator(path)){
+			std::string name = entry.path().filename().string();
+			if (entry.is_directory())
+				name += "/";
+
+			std::string link = uri;
+			if (link.back() != '/')
+				link += "/";
+			link += name;
+
+			html += "<a href=\"" + link + "\">" + name + "</a>\n";
+
+		}
+	} catch (const std::exception &e){
+		return "<html><body><h1>Error generating autoindex</h1></body></html>";
+	}
+	html += "</pre><hr></body></html>";
+	return html;
 }
