@@ -11,9 +11,10 @@
 #include <fcntl.h>
 #include <cstring>
 #include "Config.hpp"
-#include "Request.hpp"
-#include "VirtualServer.hpp"
 #include <algorithm>
+#include "Request.hpp"
+#include "Response.hpp"
+#include "VirtualServer.hpp"
 #include "utils.hpp"
 
 enum FDType{
@@ -24,13 +25,22 @@ enum FDType{
 	FD_FILE			// Static file: used for non-blocking file I/O operations
 };
 
+enum ClientState{
+	STATE_READING,
+	STATE_PROCESSING,
+	STATE_WRITING,
+	STATE_DONE
+};
+
 struct FDMetadata{
 	int			fd;				// The file descriptor number
 	FDType		type;			// Purpose of this descriptor (from enum above)
 	time_t		last_activity;	// Timestamp of the last I/O operation for timeout logic
 	int			client_fd;		// Associated client socket (links CGI pipes to specific users)
+	ClientState	client_state;	// State of the clients from enum above
 	int			timeout_value;	// Timeout limit
 	std::string	read_buffer;	//
+	Request		request;		// Request class
 	std::string	write_buffer;	// Buffer for data waiting to be sent when POLLOUT is ready
 	bool		is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
 };
@@ -68,6 +78,4 @@ class Cluster {
 		std::map<int, FDMetadata>	_fd_table;
 		// Map for socket connection between configs or servers
 		std::map<int, int>			_listen_sockets;
-		// Map to store request status of each client
-		std::map<int, Request>		_requests;
 };
