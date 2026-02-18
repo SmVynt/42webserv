@@ -14,7 +14,7 @@ std::string RequestHandler::getMimeType(const std::string &path){
 		return "application/octet-stream";
 
 	std::string ext = path.substr(pos);
-	if (ext == ".html" || ext == ".hmt")
+	if (ext == ".html" || ext == ".htm")
 		return "text/html";
 	else if (ext == ".css")
 		return "text/css";
@@ -66,10 +66,10 @@ Response RequestHandler::handleGet(const Request &req, const Location &loc) {
 		return res;
 	}
 
-	if (std::filesystem::is_directory(full_path)) {
+	if (isDirectory(full_path)) {
 		if (!loc.index.empty()) {
 			std::filesystem::path index_path = full_path / loc.index;
-			if (std::filesystem::exists(index_path) && std::filesystem::is_regular_file(index_path))
+			if (fileExists(index_path))
 				full_path = index_path;
 			else if (loc.autoindex) {
 				res.setStatusCode(200);
