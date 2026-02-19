@@ -44,7 +44,8 @@ public:
 	std::string	getHttpVersion() const;
 	std::string	getBody() const;
 	std::map<std::string, std::string>	getHeaders() const;
-
+	State	getState() const;
+	int		getErrorCode() const;
 
 };
 
