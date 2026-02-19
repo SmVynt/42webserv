@@ -72,6 +72,7 @@ void	Cluster::setupCluster()
 		_listen_sockets[socket_fd] = port;
 
 		std::cout << "Listening on port " << port << " (fd: " << socket_fd << ")" << std::endl;
+		std::cout << "http://localhost:" << port << std::endl;
 	}
 }
 void	Cluster::run()
