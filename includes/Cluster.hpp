@@ -16,6 +16,7 @@
 #include "Response.hpp"
 #include "VirtualServer.hpp"
 #include "utils.hpp"
+#include "Logger.hpp"
 
 enum FDType{
 	FD_LISTENER,	// Listening socket: accepts new incoming connections
@@ -35,21 +36,27 @@ enum ClientState{
 struct FDMetadata{
 	int			fd;				// The file descriptor number
 	FDType		type;			// Purpose of this descriptor (from enum above)
-	time_t		last_activity;	// Timestamp of the last I/O operation for timeout logic
-	int			client_fd;		// Associated client socket (links CGI pipes to specific users)
 	ClientState	client_state;	// State of the clients from enum above
+
+	time_t		last_activity;	// Timestamp of the last I/O operation for timeout logic
 	int			timeout_value;	// Timeout limit
-	std::string	read_buffer;	//
-	Request		request;		// Request class
+
+	int			port;			// Port that client int using
+	int			config_index;	// index in _config_data vector
+	int			client_fd;		// Associated client socket (links CGI pipes to specific users)
+
 	std::string	write_buffer;	// Buffer for data waiting to be sent when POLLOUT is ready
+	Request		request;		// Request obj
+	Response	response;		// Response obj
+
 	bool		is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
 };
 class Cluster {
 	public:
 		Cluster();
 		Cluster(const std::vector<ServerConfig>& config);
-		Cluster(const Cluster& other);
-		Cluster& operator=(const Cluster& other);
+		Cluster(const Cluster& other) = delete;
+		Cluster& operator=(const Cluster& other) = delete;
 		~Cluster();
 		// Method that setups initial settings for sockets
 		void	setupCluster();
