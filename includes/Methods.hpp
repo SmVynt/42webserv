@@ -19,6 +19,8 @@ class RequestHandler{
 
 		static std::string		generateAutoindex(const std::string &path, const std::string &uri);
 
+		static Response			handleMultipartUpload(const Request &req, const Location &loc, const std::string &content_type, Response &res);
+
 	public:
 		static Response			handleRequest(Request &req, const ServerConfig &config);
 
