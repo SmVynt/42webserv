@@ -2,8 +2,6 @@
 
 Cluster::Cluster(){}
 Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config) {}
-Cluster::Cluster(const Cluster& other){}
-Cluster& Cluster::operator=(const Cluster& other){}
 Cluster::~Cluster()
 {
 	for (const auto& [fd, port] : _listen_sockets)
@@ -71,13 +69,13 @@ void	Cluster::setupCluster()
 		addFD(socket_fd, FD_LISTENER, -1, 0);
 		_listen_sockets[socket_fd] = port;
 
-		std::cout << "Listening on port " << port << " (fd: " << socket_fd << ")" << std::endl;
+		Logger::info("Listening on port " + std::to_string(port) + " (fd: " + std::to_string(socket_fd) + ")");
 		std::cout << "http://localhost:" << port << std::endl;
 	}
 }
 void	Cluster::run()
 {
-	std::cout << "--- Server is starting the event loop ---" << std::endl;
+	Logger::info("--- Server is starting the event loop ---");
 
 	while (true){
 		int ret = poll(_pollfds.data(), _pollfds.size(), 1000);
@@ -95,29 +93,43 @@ void	Cluster::run()
 
 			if (revents == 0)
 				continue;
+
+			if (revents & (POLLERR | POLLNVAL)){
+				Logger::warning("Poll error on FD " + std::to_string(fd));
+				closeConnection(fd);
+				--i;
+				continue;
+			}
 			updateActivity(fd);
 
+			bool closed = false;
+
+			// READABLE
 			if (revents & POLLIN){
 				if (_fd_table[fd].type == FD_LISTENER){
 					acceptNewConnection(fd);
 				} else if (_fd_table[fd].type == FD_CLIENT){
-					if (handleClientRequest(fd) == true){
-						--i;
-						continue;
-					}
+					closed = handleClientRequest(fd);
 				}
 			}
 
+			if (closed){
+				--i;
+				continue;
+			}
+			// WRITABLE
 			if (revents & POLLOUT){
-				if (_fd_table[fd].type == FD_CLIENT){
-					if (handleClientResponse(fd) == true){
-						--i;
-						continue;
-					}
+				if (_fd_table.count(fd) && _fd_table[fd].type == FD_CLIENT){
+					closed = handleClientResponse(fd);
 				}
 			}
 
-			if (revents & (POLLHUP | POLLERR | POLLNVAL)){
+			if (closed){
+				--i;
+				continue;
+			}
+
+			if (revents & POLLHUP){
 				closeConnection(fd);
 				--i;
 				continue;
@@ -170,7 +182,6 @@ bool Cluster::handleClientRequest(int fd)
 
 				data.client_state = STATE_WRITING;
 				updatePollEvents(fd, POLLOUT);
-				data.client_state = STATE_PROCESSING;
 			}
 			else {
 				Logger::info("Request " + data.request.getMethod() + " " +
@@ -248,8 +259,12 @@ bool Cluster::handleClientResponse(int fd)
 
 void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 {
-	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0){
+		Logger::error("fcntl(O_NONBLOCK) failed for FD " + std::to_string(fd)
+		+ ": " + std::string(strerror(errno)));
+		close(fd);
 		return;
+	}
 	struct pollfd pfd;
 	pfd.fd = fd;
 	pfd.events = POLLIN;
