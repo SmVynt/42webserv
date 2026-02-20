@@ -13,6 +13,7 @@
 # include <poll.h> // For poll, used for timeout handling
 # include <fcntl.h> // For fcntl (non-blocking mode)
 # include <ctime> // For timeout handling
+// # include <exception>
 # include "cgiUtils.hpp"
 # include "cgiError.hpp"
 # include "Logger.hpp"
@@ -51,6 +52,7 @@ class CGIexecutor {
 
 		static constexpr int	DEFAULT_TIMEOUT_S = 10;
 		static constexpr size_t	BUFFER_SIZE = 4096;
+		static constexpr size_t	MAX_OUTPUT_SIZE = 10 * 1024 * 1024;
 		static constexpr int	POLL_INTERVAL_MS = 100;
 
 		void	runChild(int pipe_in[2], int pipe_out[2]);
@@ -70,7 +72,7 @@ class CGIexecutor {
 		void		setComplete(bool complete);
 		int			isComplete();
 		int			readOutput();
-		bool		checkTimeout() const;
+		bool		checkTimeout();
 		int			getOutputFd() const;
 		int			getExitStatus() const;
 		std::string	getOutput() const;

@@ -2,6 +2,8 @@
 
 int CGIError::getStatusCode(Type errorType) {
 	switch (errorType) {
+		case NO_ERROR:
+			return 0;
 		case SCRIPT_NOT_FOUND:
 			return 404;
 		case SCRIPT_NOT_EXECUTABLE:
@@ -21,6 +23,8 @@ int CGIError::getStatusCode(Type errorType) {
 
 std::string	CGIError::getStatusMessage(Type errorType) {
 	switch (errorType) {
+		case NO_ERROR:
+			return "OK";
 		case SCRIPT_NOT_FOUND:
 			return "Not Found";
 		case SCRIPT_NOT_EXECUTABLE:

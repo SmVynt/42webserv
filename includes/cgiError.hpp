@@ -6,6 +6,7 @@
 class CGIError{
 	public:
 		enum Type {
+			NO_ERROR,
 			SCRIPT_NOT_FOUND,		// 404
 			SCRIPT_NOT_EXECUTABLE,	// 500
 			TIMEOUT,				// 504
