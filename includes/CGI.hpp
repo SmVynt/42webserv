@@ -14,6 +14,7 @@
 # include <fcntl.h> // For fcntl (non-blocking mode)
 # include <ctime> // For timeout handling
 # include "cgiUtils.hpp"
+# include "cgiError.hpp"
 # include "Logger.hpp"
 
 class CGIconfig {
@@ -46,6 +47,7 @@ class CGIexecutor {
 		int									_exit_status;
 		std::string							_output_buffer;
 		bool 								_is_complete;
+		CGIError::Type						_error_type;
 
 		static constexpr int	DEFAULT_TIMEOUT_S = 10;
 		static constexpr size_t	BUFFER_SIZE = 4096;
@@ -73,6 +75,9 @@ class CGIexecutor {
 		int			getExitStatus() const;
 		std::string	getOutput() const;
 		void		killChildProcess();
+
+		CGIError::Type	getErrorType() const;
+		bool			hasError() const;
 };
 
 /**

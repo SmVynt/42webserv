@@ -12,14 +12,15 @@ CGIexecutor::CGIexecutor(const CGIconfig &config) :
 	_script_path(config.script_path),
 	_query_string(config.query_string),
 	_post_data(config.post_data),
-	_timeout_seconds(config.timeout) {
-		_start_time = time(NULL);
-		_child_pid = -1;
-		_pipe_out_fd = -1;
-		_pipe_in_fd = -1;
-		_exit_status = -1;
-		_is_complete = false;
-	}
+	_timeout_seconds(config.timeout),
+	_error_type(CGIError::UNKNOWN_ERROR),
+	_start_time(time(NULL)),
+	_child_pid(-1),
+	_pipe_out_fd(-1),
+	_pipe_in_fd(-1),
+	_exit_status(-1),
+	_is_complete(false) {
+}
 
 CGIexecutor::~CGIexecutor() {
 	killChildProcess();
@@ -260,7 +261,6 @@ int	CGIexecutor::getExitStatus() const {
 void	CGIexecutor::killChildProcess() {
 	if (_child_pid > 0) {
 		if (::kill(_child_pid, SIGKILL) == -1 && errno != ESRCH) {
-			// std::cerr << "Error: kill() failed: " << strerror(errno) << std::endl;
 			Logger::error("Error: kill() failed: " + std::string(strerror(errno)));
 		}
 		waitpid(_child_pid, NULL, WNOHANG);
@@ -269,6 +269,19 @@ void	CGIexecutor::killChildProcess() {
 	safeClose(_pipe_out_fd);
 	safeClose(_pipe_in_fd);
 }
+
+// Error handling
+CGIError::Type	CGIexecutor::getErrorType() const {
+	return _error_type;
+}
+
+bool	CGIexecutor::hasError() const {
+	return _error_type != CGIError::UNKNOWN_ERROR;
+}
+
+//-----------------------//
+//       RUN CGI         //
+//-----------------------//
 
 // Wrapper function for simple CGI execution
 CGIexecutor*	runCGI(const std::string &script_path,

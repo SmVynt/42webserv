@@ -21,7 +21,8 @@ LOGIC_SRCS	= logic/Response.cpp \
 				logic/Methods.cpp
 
 CGI_SRCS	= cgi/CGI.cpp \
-				cgi/cgiUtils.cpp
+				cgi/cgiUtils.cpp \
+				cgi/cgiError.cpp
 
 UTILS_SRCS	= utilities/utils.cpp \
 				utilities/Logger.cpp \
