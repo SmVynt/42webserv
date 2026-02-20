@@ -9,7 +9,14 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${YELLOW}=== Building CGI Tester ===${NC}"
-c++ -std=c++17 -Wall -Wextra -Werror -I includes tests/cgi_tester.cpp srcs/cgi/CGI.cpp -o cgi_test
+c++ -std=c++17 -Wall -Wextra -Werror -I includes \
+		tests/cgi/cgi_tester.cpp \
+		srcs/cgi/CGI.cpp \
+		srcs/utilities/Logger.cpp \
+		srcs/utilities/utils.cpp \
+		srcs/cgi/cgiUtils.cpp \
+		srcs/cgi/cgiError.cpp \
+		-o cgi_test
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}Failed to compile CGI tester${NC}"

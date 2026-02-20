@@ -17,18 +17,21 @@
 # include "cgiUtils.hpp"
 # include "cgiError.hpp"
 # include "Logger.hpp"
+# include "Cluster.hpp"
+# include "Config.hpp"
 
 class CGIconfig {
 	public:
-		std::string	script_path;
-		std::string	query_string;
-		std::string	post_data;
-		int			timeout;
+		std::string		script_path;
+		std::string		query_string;
+		std::string		post_data;
+		int				timeout;
+		unsigned long	max_output_size;
 
 		CGIconfig(const std::string &path,
 				  const std::string &query,
 				  const std::string &post,
-				  int timeout_sec);
+				  const ServerConfig &config);
 
 		~CGIconfig();
 };
@@ -41,6 +44,7 @@ class CGIexecutor {
 		std::map<std::string, std::string>	_env_vars;
 
 		time_t								_timeout_seconds;
+		unsigned long						_max_output_size;
 		time_t								_start_time;
 		pid_t								_child_pid;
 		int									_pipe_out_fd;
@@ -50,9 +54,9 @@ class CGIexecutor {
 		bool 								_is_complete;
 		CGIError::Type						_error_type;
 
-		static constexpr int	DEFAULT_TIMEOUT_S = 10;
+		// static constexpr int	DEFAULT_TIMEOUT_S = 10;
 		static constexpr size_t	BUFFER_SIZE = 4096;
-		static constexpr size_t	MAX_OUTPUT_SIZE = 10 * 1024 * 1024;
+		static constexpr size_t	DEFAULT_MAX_OUTPUT_SIZE = 10 * 1024 * 1024;
 		static constexpr int	POLL_INTERVAL_MS = 100;
 
 		void	runChild(int pipe_in[2], int pipe_out[2]);
@@ -87,13 +91,11 @@ class CGIexecutor {
  * @param script_path The path to the CGI script to execute.
  * @param query_string The query string to pass to the CGI script (optional).
  * @param post_data The POST data to pass to the CGI script (optional).
- * @param timeout The maximum time to allow the CGI script to run before killing it (optional
- * defaults to 10 seconds).
+ * @param config Server configuration containing timeout and max body size settings.
  *
  * Example usage:
  * runCGI("script.py");
  * runCGI("script.py", "name=John");
- * runCGI("script.py", "name=John", 30);
  * runCGI("script.py", 30);
  * runCGI("script.py", "name=John", "data=value");
  * runCGI("script.py", "name=John", "data=value", 30);
@@ -103,21 +105,13 @@ class CGIexecutor {
 CGIexecutor*	runCGI(const std::string &script_path,
 				const std::string &query_string,
 				const std::string &post_data,
-				int timeout);
+				const ServerConfig &config);
 
 CGIexecutor*	runCGI(const std::string &script_path,
 				const std::string &query_string,
-				const std::string &post_data);
+				const ServerConfig &config);
 
 CGIexecutor*	runCGI(const std::string &script_path,
-				const std::string &query_string,
-				int timeout);
-
-CGIexecutor*	runCGI(const std::string &script_path,
-				const std::string &query_string);
-
-CGIexecutor*	runCGI(const std::string &script_path, int timeout);
-
-CGIexecutor*	runCGI(const std::string &script_path);
+				const ServerConfig &config);
 
 #endif

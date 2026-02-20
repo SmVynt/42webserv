@@ -1,4 +1,6 @@
 #include "../../includes/CGI.hpp"
+#include "../../includes/Config.hpp"
+#include "../../includes/Logger.hpp"
 #include <vector>
 #include <map>
 
@@ -11,20 +13,27 @@ int main() {
 
 	std::vector<CGIexecutor*>	cgi_processes;
 
+	ServerConfig default_config;
+	default_config.client_timeout = 10;
+	default_config.client_max_body_size = 1024 * 1024;
+
 	//python
-	cgi_processes.push_back(runCGI("cgi-bin/test.py"));
-	cgi_processes.push_back(runCGI("cgi-bin/test.py", "name=Alice&age=25"));
-	cgi_processes.push_back(runCGI("cgi-bin/test.py", "", "username=testuser&password=secret123"));
+	cgi_processes.push_back(runCGI("cgi-bin/test.py", default_config));
+	cgi_processes.push_back(runCGI("cgi-bin/test.py", "name=Alice&age=25", default_config));
+	cgi_processes.push_back(runCGI("cgi-bin/test.py", "", "username=testuser&password=secret123", default_config));
 	//php
-	cgi_processes.push_back(runCGI("cgi-bin/test.php"));
-	cgi_processes.push_back(runCGI("cgi-bin/test.php", "name=Bob&city=Paris"));
-	cgi_processes.push_back(runCGI("cgi-bin/test.php", "", "email=test@example.com&message=Hello"));
+	cgi_processes.push_back(runCGI("cgi-bin/test.php", default_config));
+	cgi_processes.push_back(runCGI("cgi-bin/test.php", "name=Bob&city=Paris", default_config));
+	cgi_processes.push_back(runCGI("cgi-bin/test.php", "", "email=test@example.com&message=Hello", default_config));
 	// shell
-	cgi_processes.push_back(runCGI("cgi-bin/test.sh"));
+	cgi_processes.push_back(runCGI("cgi-bin/test.sh", default_config));
 	// timeout tests
-	cgi_processes.push_back(runCGI("cgi-bin/slow.py", "5", "", 2)); // should timeout
-	cgi_processes.push_back(runCGI("cgi-bin/slow.py", "2", "", 5)); // should complete
-	cgi_processes.push_back(runCGI("cgi-bin/infinite.py", "", "", 3)); // should timeout
+	default_config.client_timeout = 2;
+	cgi_processes.push_back(runCGI("cgi-bin/slow.py", "5", "", default_config)); // should timeout
+	default_config.client_timeout = 5;
+	cgi_processes.push_back(runCGI("cgi-bin/slow.py", "2", "", default_config)); // should complete
+	default_config.client_timeout = 3;
+	cgi_processes.push_back(runCGI("cgi-bin/infinite.py", "", "", default_config)); // should timeout
 
 	// Let's generate the pollfd list and map for quick lookup
 	std::vector<struct pollfd> pollfds;

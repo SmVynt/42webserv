@@ -3,16 +3,21 @@
 CGIconfig::CGIconfig(const std::string &path,
 				   const std::string &query,
 				   const std::string &post,
-				   int timeout_sec) :
-	script_path(path), query_string(query), post_data(post), timeout(timeout_sec) {}
+				   const ServerConfig &config) :
+	script_path(path),
+	query_string(query),
+	post_data(post),
+	timeout(config.client_timeout),
+	max_output_size(config.client_max_body_size) {}
 
 CGIconfig::~CGIconfig() {}
 
-CGIexecutor::CGIexecutor(const CGIconfig &config) :
-	_script_path(config.script_path),
-	_query_string(config.query_string),
-	_post_data(config.post_data),
-	_timeout_seconds(config.timeout) {
+CGIexecutor::CGIexecutor(const CGIconfig &CGIconfig) :
+	_script_path(CGIconfig.script_path),
+	_query_string(CGIconfig.query_string),
+	_post_data(CGIconfig.post_data),
+	_timeout_seconds(CGIconfig.timeout),
+	_max_output_size(CGIconfig.max_output_size) {
 	_error_type = CGIError::NO_ERROR;
 	_start_time = time(NULL);
 	_child_pid = -1;
@@ -206,7 +211,7 @@ int	CGIexecutor::readOutput() {
 	char buffer[BUFFER_SIZE];
 	ssize_t bytes_read = read(_pipe_out_fd, buffer, BUFFER_SIZE - 1);
 	if (bytes_read > 0) {
-		if (_output_buffer.size() + bytes_read > MAX_OUTPUT_SIZE) {
+		if (_output_buffer.size() + bytes_read > _max_output_size) {
 			Logger::error("CGI output exceeded maximum allowed size");
 			_error_type = CGIError::OUTPUT_TOO_LARGE;
 			return -1;
@@ -305,10 +310,10 @@ bool	CGIexecutor::hasError() const {
 CGIexecutor*	runCGI(const std::string &script_path,
 				const std::string &query_string,
 				const std::string &post_data,
-				int timeout)
+				const ServerConfig &config)
 {
-	CGIconfig	config(script_path, query_string, post_data, timeout);
-	CGIexecutor*	cgi = new CGIexecutor(config);
+	CGIconfig	cgi_config(script_path, query_string, post_data, config);
+	CGIexecutor*	cgi = new CGIexecutor(cgi_config);
 
 	if (cgi->start() != 0) {
 		delete cgi;
@@ -318,32 +323,14 @@ CGIexecutor*	runCGI(const std::string &script_path,
 	return cgi;
 }
 
-// Overload: script + query + post (use default timeout)
+// Overload: script + config only
+CGIexecutor*	runCGI(const std::string &script_path, const ServerConfig &config) {
+	return runCGI(script_path, "", "", config);
+}
+
+// Overload: script + query + config (skip post_data)
 CGIexecutor*	runCGI(const std::string &script_path,
 					const std::string &query_string,
-					const std::string &post_data) {
-	return runCGI(script_path, query_string, post_data, 10);
-}
-
-// Overload: script + timeout only
-CGIexecutor*	runCGI(const std::string &script_path, int timeout) {
-	return runCGI(script_path, "", "", timeout);
-}
-
-// Overload: script + query + timeout (skip post_data)
-CGIexecutor*	runCGI(const std::string &script_path,
-					const std::string &query_string,
-					int timeout) {
-	return runCGI(script_path, query_string, "", timeout);
-}
-
-// Overload: script + query only (use default timeout)
-CGIexecutor*	runCGI(const std::string &script_path,
-					const std::string &query_string) {
-	return runCGI(script_path, query_string, "", 10);
-}
-
-// Overload: script only (use defaults)
-CGIexecutor*	runCGI(const std::string &script_path) {
-	return runCGI(script_path, "", "", 10);
+					const ServerConfig &config) {
+	return runCGI(script_path, query_string, "", config);
 }
