@@ -22,11 +22,12 @@
 
 class CGIconfig {
 	public:
-		std::string		script_path;
-		std::string		query_string;
-		std::string		post_data;
-		int				timeout;
-		unsigned long	max_output_size;
+		std::string			script_path;
+		std::string			query_string;
+		std::string			post_data;
+		// int				timeout;
+		// unsigned long	max_output_size;
+		const ServerConfig	&_config;
 
 		CGIconfig(const std::string &path,
 				  const std::string &query,
@@ -43,8 +44,9 @@ class CGIexecutor {
 		std::string							_post_data;
 		std::map<std::string, std::string>	_env_vars;
 
-		time_t								_timeout_seconds;
-		unsigned long						_max_output_size;
+		// time_t								_timeout_seconds;
+		// unsigned long						_max_output_size;
+		const ServerConfig					&_config;
 		time_t								_start_time;
 		pid_t								_child_pid;
 		int									_pipe_out_fd;
@@ -67,7 +69,7 @@ class CGIexecutor {
 		CGIexecutor(const CGIconfig &config);
 		~CGIexecutor();
 
-		void	setTimeout(int seconds);
+		// void	setTimeout(int seconds);
 		void	setQuery(const std::string &query);
 		void	setPostData(const std::string &data);
 		void	setHttpHeader(const std::string &name, const std::string &value);

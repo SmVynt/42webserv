@@ -7,8 +7,10 @@ CGIconfig::CGIconfig(const std::string &path,
 	script_path(path),
 	query_string(query),
 	post_data(post),
-	timeout(config.client_timeout),
-	max_output_size(config.client_max_body_size) {}
+	// timeout(config.client_timeout),
+	// max_output_size(config.client_max_body_size)
+	_config(config)
+	{}
 
 CGIconfig::~CGIconfig() {}
 
@@ -16,8 +18,10 @@ CGIexecutor::CGIexecutor(const CGIconfig &CGIconfig) :
 	_script_path(CGIconfig.script_path),
 	_query_string(CGIconfig.query_string),
 	_post_data(CGIconfig.post_data),
-	_timeout_seconds(CGIconfig.timeout),
-	_max_output_size(CGIconfig.max_output_size) {
+	// _timeout_seconds(CGIconfig.timeout),
+	// _max_output_size(CGIconfig.max_output_size),
+	_config(CGIconfig._config)
+	{
 	_error_type = CGIError::NO_ERROR;
 	_start_time = time(NULL);
 	_child_pid = -1;
@@ -31,9 +35,9 @@ CGIexecutor::~CGIexecutor() {
 	killChildProcess();
 }
 
-void	CGIexecutor::setTimeout(int seconds) {
-	_timeout_seconds = seconds;
-}
+// void	CGIexecutor::setTimeout(int seconds) {
+// 	_timeout_seconds = seconds;
+// }
 
 void	CGIexecutor::setQuery(const std::string &query)
 {
@@ -119,20 +123,19 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 
 	// Determine interpreter based on extension
 	const char* argv[3];
-	if (_script_path.find(".py") != std::string::npos) {
-		argv[0] = "/usr/bin/python3";
-		argv[1] = _script_path.c_str();
-		argv[2] = nullptr;
-		execve(argv[0], (char**)argv, envp.data());
-	} else if (_script_path.find(".php") != std::string::npos) {
-		argv[0] = "/usr/bin/php-cgi";
-		argv[1] = _script_path.c_str();
-		argv[2] = nullptr;
-		execve(argv[0], (char**)argv, envp.data());
-	} else {
+	const char* cgi_ext = _script_path.substr(_script_path.find_last_of('.')).c_str();
+	if (strcmp(cgi_ext, ".sh") == 0) {
 		argv[0] = _script_path.c_str();
 		argv[1] = nullptr;
 		execve(argv[0], (char**)argv, envp.data());
+	}
+	for (auto &loc : _config.locations) {
+		if (loc.cgi_ext.has_value() && loc.cgi_ext.value() == cgi_ext && loc.cgi_path.has_value()) {
+			argv[0] = loc.cgi_path.value().c_str();
+			argv[1] = _script_path.c_str();
+			argv[2] = nullptr;
+			execve(argv[0], (char**)argv, envp.data());
+		}
 	}
 
 	// If execve returns, it failed
@@ -211,7 +214,8 @@ int	CGIexecutor::readOutput() {
 	char buffer[BUFFER_SIZE];
 	ssize_t bytes_read = read(_pipe_out_fd, buffer, BUFFER_SIZE - 1);
 	if (bytes_read > 0) {
-		if (_output_buffer.size() + bytes_read > _max_output_size) {
+		// if (_output_buffer.size() + bytes_read > _max_output_size) {
+		if (_output_buffer.size() + bytes_read > _config.client_max_body_size) {
 			Logger::error("CGI output exceeded maximum allowed size");
 			_error_type = CGIError::OUTPUT_TOO_LARGE;
 			return -1;
@@ -232,7 +236,8 @@ int	CGIexecutor::readOutput() {
 }
 
 bool	CGIexecutor::checkTimeout() {
-	bool timed_out = (time(NULL) - _start_time >= _timeout_seconds);
+	// bool timed_out = (time(NULL) - _start_time >= _timeout_seconds);
+	bool timed_out = (time(NULL) - _start_time >= _config.client_timeout);
 	if (timed_out){
 		_error_type = CGIError::TIMEOUT;
 	}

@@ -16,6 +16,9 @@ c++ -std=c++17 -Wall -Wextra -Werror -I includes \
 		srcs/utilities/utils.cpp \
 		srcs/cgi/cgiUtils.cpp \
 		srcs/cgi/cgiError.cpp \
+		srcs/parser/Config.cpp \
+		srcs/parser/parserUtils.cpp \
+		srcs/parser/Request.cpp \
 		-o cgi_test
 
 if [ $? -ne 0 ]; then
