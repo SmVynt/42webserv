@@ -3,31 +3,41 @@
 CGIconfig::CGIconfig(const std::string &path,
 				   const std::string &query,
 				   const std::string &post,
-				   int timeout_sec) :
-	script_path(path), query_string(query), post_data(post), timeout(timeout_sec) {}
+				   const ServerConfig &config) :
+	script_path(path),
+	query_string(query),
+	post_data(post),
+	// timeout(config.client_timeout),
+	// max_output_size(config.client_max_body_size)
+	_config(config)
+	{}
 
 CGIconfig::~CGIconfig() {}
 
-CGIexecutor::CGIexecutor(const CGIconfig &config) :
-	_script_path(config.script_path),
-	_query_string(config.query_string),
-	_post_data(config.post_data),
-	_timeout_seconds(config.timeout) {
-		_start_time = time(NULL);
-		_child_pid = -1;
-		_pipe_out_fd = -1;
-		_pipe_in_fd = -1;
-		_exit_status = -1;
-		_is_complete = false;
-	}
+CGIexecutor::CGIexecutor(const CGIconfig &CGIconfig) :
+	_script_path(CGIconfig.script_path),
+	_query_string(CGIconfig.query_string),
+	_post_data(CGIconfig.post_data),
+	// _timeout_seconds(CGIconfig.timeout),
+	// _max_output_size(CGIconfig.max_output_size),
+	_config(CGIconfig._config)
+	{
+	_error_type = CGIError::NO_ERROR;
+	_start_time = time(NULL);
+	_child_pid = -1;
+	_pipe_out_fd = -1;
+	_pipe_in_fd = -1;
+	_exit_status = -1;
+	_is_complete = false;
+}
 
 CGIexecutor::~CGIexecutor() {
 	killChildProcess();
 }
 
-void	CGIexecutor::setTimeout(int seconds) {
-	_timeout_seconds = seconds;
-}
+// void	CGIexecutor::setTimeout(int seconds) {
+// 	_timeout_seconds = seconds;
+// }
 
 void	CGIexecutor::setQuery(const std::string &query)
 {
@@ -88,14 +98,14 @@ void	CGIexecutor::setupEnvironment() {
 
 void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	if (dup2(pipe_in[0], STDIN_FILENO) == -1) {
-		// std::cerr << "Error: dup2() failed for stdin" << std::endl;
-		Logger::error("Error: dup2() failed for stdin");
+		Logger::error("dup2() failed for stdin");
+		_error_type = CGIError::PIPE_FAILED;
 		closePipes(pipe_in, pipe_out);
 		exit(1);
 	}
 	if (dup2(pipe_out[1], STDOUT_FILENO) == -1) {
-		// std::cerr << "Error: dup2() failed for stdout" << std::endl;
-		Logger::error("Error: dup2() failed for stdout");
+		Logger::error("dup2() failed for stdout");
+		_error_type = CGIError::PIPE_FAILED;
 		closePipes(pipe_in, pipe_out);
 		exit(1);
 	}
@@ -113,25 +123,24 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 
 	// Determine interpreter based on extension
 	const char* argv[3];
-	if (_script_path.find(".py") != std::string::npos) {
-		argv[0] = "/usr/bin/python3";
-		argv[1] = _script_path.c_str();
-		argv[2] = nullptr;
-		execve(argv[0], (char**)argv, envp.data());
-	} else if (_script_path.find(".php") != std::string::npos) {
-		argv[0] = "/usr/bin/php-cgi";
-		argv[1] = _script_path.c_str();
-		argv[2] = nullptr;
-		execve(argv[0], (char**)argv, envp.data());
-	} else {
+	const char* cgi_ext = _script_path.substr(_script_path.find_last_of('.')).c_str();
+	if (strcmp(cgi_ext, ".sh") == 0) {
 		argv[0] = _script_path.c_str();
 		argv[1] = nullptr;
 		execve(argv[0], (char**)argv, envp.data());
 	}
+	for (auto &loc : _config.locations) {
+		if (loc.cgi_ext.has_value() && loc.cgi_ext.value() == cgi_ext && loc.cgi_path.has_value()) {
+			argv[0] = loc.cgi_path.value().c_str();
+			argv[1] = _script_path.c_str();
+			argv[2] = nullptr;
+			execve(argv[0], (char**)argv, envp.data());
+		}
+	}
 
 	// If execve returns, it failed
-	// std::cerr << "Error: execve() failed for " << _script_path << std::endl;
-	Logger::error("Error: execve() failed for " + _script_path);
+	Logger::error("execve() failed for " + _script_path);
+	_error_type = CGIError::EXEC_FAILED;
 	// Cleanup
 	for (size_t i = 0; i < envp.size(); ++i) {
 		free(envp[i]);
@@ -145,13 +154,13 @@ int	CGIexecutor::start() {
 	int		pipe_out[2];
 
 	if (pipe(pipe_in) == -1) {
-		// std::cerr << "Error: pipe() failed" << std::endl;
-		Logger::error("Error: pipe() failed");
+		Logger::error("pipe() failed");
+		_error_type = CGIError::PIPE_FAILED;
 		return 1;
 	}
 	if (pipe(pipe_out) == -1) {
-		// std::cerr << "Error: pipe() failed" << std::endl;
-		Logger::error("Error: pipe() failed");
+		Logger::error("pipe() failed");
+		_error_type = CGIError::PIPE_FAILED;
 		safeClose(pipe_in[0]);
 		safeClose(pipe_in[1]);
 		return 1;
@@ -163,8 +172,8 @@ int	CGIexecutor::start() {
 	_pipe_out_fd = pipe_out[0];
 	_child_pid = fork();
 	if (_child_pid == -1) {
-		// std::cerr << "Error: fork() failed" << std::endl;
-		Logger::error("Error: fork() failed");
+		Logger::error("fork() failed");
+		_error_type = CGIError::FORK_FAILED;
 		closePipes(pipe_in, pipe_out);
 		return 1;
 	}
@@ -178,13 +187,13 @@ int	CGIexecutor::start() {
 	// Set output pipe to non-blocking mode
 	int flags = fcntl(_pipe_out_fd, F_GETFL, 0);
 	if (flags == -1) {
-		// std::cerr << "Error: fcntl() failed to get flags" << std::endl;
-		Logger::error("Error: fcntl() failed to get flags");
+		Logger::error("fcntl() failed to get flags");
+		_error_type = CGIError::PIPE_FAILED;
 		return 1;
 	}
 	if (fcntl(_pipe_out_fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-		// std::cerr << "Error: fcntl() failed to set non-blocking mode" << std::endl;
-		Logger::error("Error: fcntl() failed to set non-blocking mode");
+		Logger::error("fcntl() failed to set non-blocking mode");
+		_error_type = CGIError::PIPE_FAILED;
 		return 1;
 	}
 
@@ -205,16 +214,35 @@ int	CGIexecutor::readOutput() {
 	char buffer[BUFFER_SIZE];
 	ssize_t bytes_read = read(_pipe_out_fd, buffer, BUFFER_SIZE - 1);
 	if (bytes_read > 0) {
-		buffer[bytes_read] = '\0';
-		_output_buffer += buffer;
-		// std::cout << buffer;
-		// return true;
+		// if (_output_buffer.size() + bytes_read > _max_output_size) {
+		if (_output_buffer.size() + bytes_read > _config.client_max_body_size) {
+			Logger::error("CGI output exceeded maximum allowed size");
+			_error_type = CGIError::OUTPUT_TOO_LARGE;
+			return -1;
+		}
+
+		try {
+			buffer[bytes_read] = '\0';
+			_output_buffer.append(buffer, bytes_read);
+		}
+		catch (const std::bad_alloc &e) {
+			Logger::error("Out of memory reading CGI output");
+			_error_type = CGIError::OUTPUT_TOO_LARGE;
+			killChildProcess();
+			return -1;
+		}
 	}
 	return bytes_read;
 }
 
-bool	CGIexecutor::checkTimeout() const {
-	return (time(NULL) - _start_time >= _timeout_seconds);
+bool	CGIexecutor::checkTimeout() {
+	// bool timed_out = (time(NULL) - _start_time >= _timeout_seconds);
+	bool timed_out = (time(NULL) - _start_time >= _config.client_timeout);
+	if (timed_out){
+		_error_type = CGIError::TIMEOUT;
+	}
+	return timed_out;
+
 }
 
 int	CGIexecutor::isComplete() {
@@ -235,8 +263,8 @@ int	CGIexecutor::isComplete() {
 		}
 		return 1; // Process has completed
 	} else {
-		// std::cerr << "Error: waitpid() failed" << std::endl;
-		Logger::error("Error: waitpid() failed");
+		Logger::error("waitpid() failed");
+		_error_type = CGIError::UNKNOWN_ERROR;
 		return -1; // Error
 	}
 }
@@ -260,8 +288,8 @@ int	CGIexecutor::getExitStatus() const {
 void	CGIexecutor::killChildProcess() {
 	if (_child_pid > 0) {
 		if (::kill(_child_pid, SIGKILL) == -1 && errno != ESRCH) {
-			// std::cerr << "Error: kill() failed: " << strerror(errno) << std::endl;
-			Logger::error("Error: kill() failed: " + std::string(strerror(errno)));
+			Logger::error("kill() failed: " + std::string(strerror(errno)));
+			_error_type = CGIError::UNKNOWN_ERROR;
 		}
 		waitpid(_child_pid, NULL, WNOHANG);
 		_child_pid = -1;
@@ -270,14 +298,27 @@ void	CGIexecutor::killChildProcess() {
 	safeClose(_pipe_in_fd);
 }
 
+// Error handling
+CGIError::Type	CGIexecutor::getErrorType() const {
+	return _error_type;
+}
+
+bool	CGIexecutor::hasError() const {
+	return _error_type != CGIError::NO_ERROR;
+}
+
+//-----------------------//
+//       RUN CGI         //
+//-----------------------//
+
 // Wrapper function for simple CGI execution
 CGIexecutor*	runCGI(const std::string &script_path,
 				const std::string &query_string,
 				const std::string &post_data,
-				int timeout)
+				const ServerConfig &config)
 {
-	CGIconfig	config(script_path, query_string, post_data, timeout);
-	CGIexecutor*	cgi = new CGIexecutor(config);
+	CGIconfig	cgi_config(script_path, query_string, post_data, config);
+	CGIexecutor*	cgi = new CGIexecutor(cgi_config);
 
 	if (cgi->start() != 0) {
 		delete cgi;
@@ -287,32 +328,14 @@ CGIexecutor*	runCGI(const std::string &script_path,
 	return cgi;
 }
 
-// Overload: script + query + post (use default timeout)
+// Overload: script + config only
+CGIexecutor*	runCGI(const std::string &script_path, const ServerConfig &config) {
+	return runCGI(script_path, "", "", config);
+}
+
+// Overload: script + query + config (skip post_data)
 CGIexecutor*	runCGI(const std::string &script_path,
 					const std::string &query_string,
-					const std::string &post_data) {
-	return runCGI(script_path, query_string, post_data, 10);
-}
-
-// Overload: script + timeout only
-CGIexecutor*	runCGI(const std::string &script_path, int timeout) {
-	return runCGI(script_path, "", "", timeout);
-}
-
-// Overload: script + query + timeout (skip post_data)
-CGIexecutor*	runCGI(const std::string &script_path,
-					const std::string &query_string,
-					int timeout) {
-	return runCGI(script_path, query_string, "", timeout);
-}
-
-// Overload: script + query only (use default timeout)
-CGIexecutor*	runCGI(const std::string &script_path,
-					const std::string &query_string) {
-	return runCGI(script_path, query_string, "", 10);
-}
-
-// Overload: script only (use defaults)
-CGIexecutor*	runCGI(const std::string &script_path) {
-	return runCGI(script_path, "", "", 10);
+					const ServerConfig &config) {
+	return runCGI(script_path, query_string, "", config);
 }
