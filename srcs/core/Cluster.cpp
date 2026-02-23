@@ -179,7 +179,7 @@ bool Cluster::handleClientRequest(int fd)
 				int error_code = data.request.getErrorCode();
 				Logger::error("Request error " + std::to_string(error_code) + " on FD " + std::to_string(fd));
 				data.response = generateErrorResponse(error_code, data.config_index);
-
+				data.response.prepare();
 				data.client_state = STATE_WRITING;
 				updatePollEvents(fd, POLLOUT);
 			}
@@ -187,7 +187,11 @@ bool Cluster::handleClientRequest(int fd)
 				Logger::info("Request " + data.request.getMethod() + " " +
 				data.request.getPath() + " fully recieved [FD " + std::to_string(fd) + "]");
 				data.client_state = STATE_PROCESSING;
-				this->processRequest(fd);
+				// TO DO: Handle error pages;
+				data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
+				data.response.prepare();
+				data.client_state = STATE_WRITING;
+				updatePollEvents(fd, POLLOUT);
 			}
 		}
 		return false;
@@ -231,18 +235,22 @@ void Cluster::updatePollEvents(int fd, short events)
 
 bool Cluster::handleClientResponse(int fd)
 {
-	std::string& response = _fd_table[fd].write_buffer;
-	if (response.empty()){
-		updatePollEvents(fd, POLLIN);
-		return false;
+	// std::string& response = _fd_table[fd].write_buffer;
+	FDMetadata& data = _fd_table.at(fd);
+	if (data.response.getRemainingSize() == 0){
+		closeConnection(fd);
+		return true;
 	}
 	// TO DO: Check if everything was sent or not. If yes delete only sent data
-	ssize_t bytes_sent = send(fd, response.c_str(), response.length(), 0);
+	size_t bytes_sent = send(fd, data.response.getUnsentData(), data.response.getRemainingSize(), 0);
 
 	if (bytes_sent > 0){
-		response.erase(0, bytes_sent);
-		if (response.empty()){
-			updatePollEvents(fd, POLLIN);
+		// TO DO: Update in updateSentBytes size_t to ssize_t
+		data.response.updateSentBytes(bytes_sent);
+		if (data.response.isFinished()){
+			Logger::info("Response sent successfully [FD " + std::to_string(fd) + "]");
+			closeConnection(fd);
+			return true;
 		}
 		return false;
 	} else if (bytes_sent == 0){
@@ -250,6 +258,7 @@ bool Cluster::handleClientResponse(int fd)
 		return true;
 	} else {
 		if (errno != EWOULDBLOCK && errno != EAGAIN) {
+			Logger::error("Send failed [FD " + std::to_string(fd) + "]");
 			closeConnection(fd);
 			return true;
 		}

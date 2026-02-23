@@ -17,7 +17,7 @@
 #include "VirtualServer.hpp"
 #include "utils.hpp"
 #include "Logger.hpp"
-
+#include "Methods.hpp"
 enum FDType{
 	FD_LISTENER,	// Listening socket: accepts new incoming connections
 	FD_CLIENT,		// Client socket: handles HTTP requests and responses
