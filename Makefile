@@ -4,7 +4,7 @@ RESET			= \033[0m
 
 NAME			= webserv
 CXX				= c++
-CXXFLAGS		= -Wall -Wextra -Werror -std=c++17
+CXXFLAGS		= -Wall -Wextra -Werror -std=c++17 -Wpedantic
 OBJ_DIR			= obj/
 INC_DIR			= includes/
 SRC_DIR			= srcs/

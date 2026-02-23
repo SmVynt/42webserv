@@ -123,8 +123,8 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 
 	// Determine interpreter based on extension
 	const char* argv[3];
-	const char* cgi_ext = _script_path.substr(_script_path.find_last_of('.')).c_str();
-	if (strcmp(cgi_ext, ".sh") == 0) {
+	std::string cgi_ext = _script_path.substr(_script_path.find_last_of('.'));
+	if (cgi_ext == ".sh") {
 		argv[0] = _script_path.c_str();
 		argv[1] = nullptr;
 		execve(argv[0], (char**)argv, envp.data());

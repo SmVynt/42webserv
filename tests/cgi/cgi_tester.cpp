@@ -29,14 +29,6 @@ int main() {
 	cgi_processes.push_back(runCGI("cgi-bin/php/test.php", default_config));
 	cgi_processes.push_back(runCGI("cgi-bin/php/test.php", "name=Bob&city=Paris", default_config));
 	cgi_processes.push_back(runCGI("cgi-bin/php/test.php", "", "email=test@example.com&message=Hello", default_config));
-	//perl
-	cgi_processes.push_back(runCGI("cgi-bin/perl/test.pl", default_config));
-	//lua
-	cgi_processes.push_back(runCGI("cgi-bin/lua/test.lua", default_config));
-	// node
-	cgi_processes.push_back(runCGI("cgi-bin/node/test.js", default_config));
-	// ruby
-	cgi_processes.push_back(runCGI("cgi-bin/ruby/test.rb", default_config));
 	// shell
 	cgi_processes.push_back(runCGI("cgi-bin/shell/test.sh", default_config));
 	// timeout tests

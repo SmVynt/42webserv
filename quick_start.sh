@@ -156,10 +156,6 @@ case $choice in
         # CGI interpreters
         command -v python3 &>/dev/null || missing+=("python3")
         command -v php-cgi &>/dev/null || missing+=("php-cgi")
-        command -v ruby &>/dev/null || missing+=("ruby")
-        command -v node &>/dev/null || missing+=("nodejs")
-        command -v lua &>/dev/null || missing+=("lua5.3")
-        command -v perl &>/dev/null || missing+=("perl")
 
         if [ ${#missing[@]} -eq 0 ]; then
             echo -e "${GREEN}✓ All dependencies installed!${NC}"
