@@ -4,10 +4,10 @@ Cluster::Cluster(){}
 Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config) {}
 Cluster::~Cluster()
 {
-	for (const auto& [fd, port] : _listen_sockets)
+	for (const auto& pfd : _pollfds)
 	{
-		if (fd >= 0)
-			close(fd);
+		if (pfd.fd >= 0)
+			close(pfd.fd);
 	}
 }
 void	Cluster::setupCluster()
@@ -85,54 +85,55 @@ void	Cluster::run()
 			throw std::runtime_error("Poll filed: " + std::string(strerror(errno)));
 		}
 
+		std::vector<std::pair<int, short>> events;
+		for (const auto& pfd : _pollfds){
+			if (pfd.revents != 0)
+				events.emplace_back(pfd.fd, pfd.revents);
+		}
 		handleTimeout();
 
-		for (int i = 0; i < static_cast<int>(_pollfds.size()); ++i){
-			int fd = _pollfds[i].fd;
-			short revents = _pollfds[i].revents;
-
-			if (revents == 0)
+		for (const auto& [fd, revents] : events){
+			if (_fd_table.find(fd) == _fd_table.end())
 				continue;
 
 			if (revents & (POLLERR | POLLNVAL)){
 				Logger::warning("Poll error on FD " + std::to_string(fd));
 				closeConnection(fd);
-				--i;
 				continue;
 			}
 			updateActivity(fd);
 
-			bool closed = false;
 
 			// READABLE
 			if (revents & POLLIN){
-				if (_fd_table[fd].type == FD_LISTENER){
+				auto it = _fd_table.find(fd);
+				if (it == _fd_table.end())
+					continue;
+
+				if (it->second.type == FD_LISTENER){
 					acceptNewConnection(fd);
-				} else if (_fd_table[fd].type == FD_CLIENT){
-					closed = handleClientRequest(fd);
+				} else if (it->second.type == FD_CLIENT){
+					if (handleClientRequest(fd));
+						continue;
 				}
 			}
 
-			if (closed){
-				--i;
-				continue;
-			}
 			// WRITABLE
 			if (revents & POLLOUT){
-				if (_fd_table.count(fd) && _fd_table[fd].type == FD_CLIENT){
-					closed = handleClientResponse(fd);
+				auto it = _fd_table.find(fd);
+				if (it == _fd_table.end())
+					continue;
+
+				if (it->second.type == FD_CLIENT){
+					if (handleClientResponse(fd))
+						continue;
 				}
 			}
 
-			if (closed){
-				--i;
-				continue;
-			}
 
 			if (revents & POLLHUP){
-				closeConnection(fd);
-				--i;
-				continue;
+				if (_fd_table.find(fd) != _fd_table.end())
+					closeConnection(fd);
 			}
 		}
 	}
