@@ -233,8 +233,40 @@ Response RequestHandler::handlePost(const Request &req, const Location &loc){
 
 Response RequestHandler::handleDelete(const Request &req, const Location &loc){
 	Response res;
-	(void)req;
-	(void)loc;
+
+	std::filesystem::path root_path(loc.root);
+	std::string request_path = req.getPath();
+
+	std::string rel_uri = request_path.substr(loc.path.length());
+	if (!rel_uri.empty() && rel_uri[0] == '/')
+		rel_uri.erase(0, 1);
+
+	std::filesystem::path full_path = (root_path / rel_uri).lexically_normal();
+
+	if (!std::filesystem::exists(full_path)){
+		res.setStatusCode(404);
+		return res;
+	}
+
+	if (isDirectory(full_path)){
+		res.setStatusCode(403);
+		return res;
+	}
+
+	if (access(full_path.c_str(), W_OK) != 0){
+		res.setStatusCode(403);
+		return res;
+	}
+
+	try{
+		if (std::filesystem::remove(full_path))
+			res.setStatusCode(204);
+		else
+			res.setStatusCode(500);
+	} catch (const std::filesystem::filesystem_error& e){
+			res.setStatusCode(500);
+	}
+
 	return res;
 }
 
