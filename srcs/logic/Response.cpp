@@ -53,23 +53,6 @@ void	Response::prepare(){
 	_bytes_sent = 0;
 }
 
-int		Response::sendResponse(int fd){
-	if (_full_response.empty())
-		prepare();
-	const char	*remaining_data = _full_response.c_str() + _bytes_sent;
-	size_t		remaining_size = _full_response.size() - _bytes_sent;
-	ssize_t		sent = send(fd, remaining_data, remaining_size, 0);
-
-	if (sent <= 0)
-		return sent;
-
-	_bytes_sent += sent;
-
-	if (_bytes_sent == _full_response.size())
-		return 1;
-	return 0;
-}
-
 std::string	Response::getStatusMessage(int code){
 	if (_status_messages.count(code))
 		return _status_messages.at(code);
@@ -84,3 +67,13 @@ void Response::makeDefaultError(int code) {
 			"<hr><center>Webslave/1.0</center></body></html>";
 	addHeader("Content-Type", "text/html");
 }
+
+void		Response::updateSentBytes(size_t sent) { _bytes_sent += sent; }
+
+int			Response::getStatusCode() const { return _status_code; }
+
+const char	*Response::getUnsentData() const { return _full_response.c_str() + _bytes_sent; }
+
+size_t		Response::getRemainingSize() const { return _full_response.size() - _bytes_sent; }
+
+bool		Response::isFinished() const { return !_full_response.empty() && _bytes_sent >= _full_response.size(); }

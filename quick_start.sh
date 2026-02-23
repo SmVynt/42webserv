@@ -144,6 +144,7 @@ case $choice in
         # Check which are missing
         missing=()
 
+        # Testing tools
         command -v curl &>/dev/null || missing+=("curl")
         command -v nc &>/dev/null || missing+=("netcat-openbsd")
         command -v bc &>/dev/null || missing+=("bc")
@@ -151,6 +152,10 @@ case $choice in
         command -v ab &>/dev/null || missing+=("apache2-utils")
         command -v valgrind &>/dev/null || missing+=("valgrind")
         command -v nginx &>/dev/null || missing+=("nginx")
+
+        # CGI interpreters
+        command -v python3 &>/dev/null || missing+=("python3")
+        command -v php-cgi &>/dev/null || missing+=("php-cgi")
 
         if [ ${#missing[@]} -eq 0 ]; then
             echo -e "${GREEN}✓ All dependencies installed!${NC}"

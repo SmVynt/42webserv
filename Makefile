@@ -4,7 +4,7 @@ RESET			= \033[0m
 
 NAME			= webserv
 CXX				= c++
-CXXFLAGS		= -Wall -Wextra -Werror -std=c++17
+CXXFLAGS		= -Wall -Wextra -Werror -std=c++17 -Wpedantic
 OBJ_DIR			= obj/
 INC_DIR			= includes/
 SRC_DIR			= srcs/
@@ -21,7 +21,8 @@ LOGIC_SRCS	= logic/Response.cpp \
 				logic/Methods.cpp
 
 CGI_SRCS	= cgi/CGI.cpp \
-				cgi/cgiUtils.cpp
+				cgi/cgiUtils.cpp \
+				cgi/cgiError.cpp
 
 UTILS_SRCS	= utilities/utils.cpp \
 				utilities/Logger.cpp \
