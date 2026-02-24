@@ -6,7 +6,11 @@
 set -euo pipefail
 
 # Configuration
-SERVER_HOST="${SERVER_HOST:-localhost}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+SERVER_BIN="${SERVER_BIN:-$PROJECT_ROOT/webserv}"
+CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/config/default.conf}"
+SERVER_HOST="${SERVER_HOST:-127.0.0.1}"
 SERVER_PORT="${SERVER_PORT:-8080}"
 
 # Colors
@@ -19,7 +23,7 @@ NC='\033[0m'
 start_server() {
     if ! nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then
         echo "Starting server..."
-        ../webserv ../config/default.conf &>/dev/null &
+        "$SERVER_BIN" "$CONFIG_FILE" &>/dev/null &
         SERVER_PID=$!
         sleep 2
 

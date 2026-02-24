@@ -200,7 +200,11 @@ run_test_category() {
     log "${CYAN}========================================${NC}"
 
     if [ -f "$script" ]; then
-        if bash "$script" >> "$RUN_LOG" 2>&1; then
+        set +e
+        bash "$script" 2>&1 | tee -a "$RUN_LOG"
+        local status=${PIPESTATUS[0]}
+        set -e
+        if [ $status -eq 0 ]; then
             record_test "$category" "PASS"
             return 0
         else
@@ -347,7 +351,9 @@ main() {
     : "${SERVER_HOST:=127.0.0.1}"
     : "${SERVER_PORT:=8080}"
     : "${SERVER_URL:=http://${SERVER_HOST}:${SERVER_PORT}}"
-    export SERVER_HOST SERVER_PORT SERVER_URL
+    : "${SERVER_BIN:=$PROJECT_ROOT/webserv}"
+    : "${CONFIG_FILE:=$PROJECT_ROOT/config/default.conf}"
+    export SERVER_HOST SERVER_PORT SERVER_URL SERVER_BIN CONFIG_FILE PROJECT_ROOT
 
     # Run test categories
     if [ "$RUN_STATIC_TESTS" = true ]; then

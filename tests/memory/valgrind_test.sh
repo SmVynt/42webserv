@@ -6,8 +6,10 @@
 set -euo pipefail
 
 # Configuration
-SERVER_BIN="${SERVER_BIN:-../webserv}"
-CONFIG_FILE="${CONFIG_FILE:-../config/default.conf}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+SERVER_BIN="${SERVER_BIN:-$PROJECT_ROOT/webserv}"
+CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/config/default.conf}"
 TEST_DURATION="${TEST_DURATION:-30}"
 VALGRIND_LOG="/tmp/valgrind_webserv.log"
 
@@ -41,12 +43,12 @@ echo "This test will take several minutes..."
 echo ""
 
 # Build server without optimization for better valgrind output
-cd ..
+cd "$PROJECT_ROOT"
 echo "Building server with debug symbols..."
 make fclean > /dev/null 2>&1
 make "CXXFLAGS=-Wall -Wextra -Werror -std=c++17 -g -O0" > /dev/null 2>&1
 
-cd tests
+cd "$SCRIPT_DIR"
 
 # Test 1: Startup and shutdown leak check
 echo "Test 1: Startup/Shutdown leak check"

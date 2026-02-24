@@ -6,6 +6,10 @@
 set -euo pipefail
 
 # Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+SERVER_BIN="${SERVER_BIN:-$PROJECT_ROOT/webserv}"
+CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/config/default.conf}"
 SERVER_HOST="${SERVER_HOST:-127.0.0.1}"
 SERVER_PORT="${SERVER_PORT:-8080}"
 SERVER_URL="http://${SERVER_HOST}:${SERVER_PORT}"
@@ -21,8 +25,11 @@ NC='\033[0m'
 start_server() {
     if ! nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then
         echo "Starting server..."
-        ../webserv ../config/default.conf &>/dev/null &
+        local start_dir="$PWD"
+        cd "$PROJECT_ROOT"
+        "$SERVER_BIN" "$CONFIG_FILE" &>/dev/null &
         SERVER_PID=$!
+        cd "$start_dir"
         sleep 1
 
         if ! nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then
@@ -175,7 +182,7 @@ echo "Test 2: MIME Type Detection"
 test_static_file "HTML file" "/index.html" "200" "text/html"
 
 # Create test files if they don't exist
-TEST_DIR="../www/test_files"
+TEST_DIR="$PROJECT_ROOT/www/test_files"
 mkdir -p "$TEST_DIR"
 
 # Create CSS file
