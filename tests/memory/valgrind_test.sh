@@ -43,8 +43,28 @@ valgrind --leak-check=full --show-leak-kinds=all --log-file="$VALGRIND_LOG" \
          "$SERVER_BIN" "$CONFIG_FILE" </dev/null >/dev/null 2>&1 &
 SERVER_PID=$!
 
-# Wait 60 seconds
-sleep 60
+# Wait for server to start
+sleep 2
+
+# Perform memory-testing requests
+echo "Running memory stress tests..."
+for i in {1..4}; do
+    # Static file requests - exercise buffer handling
+    curl -s -4 --connect-timeout 2 --max-time 5 http://127.0.0.1:8080/index.html >/dev/null 2>&1 || true
+    
+    # Request to trigger various code paths
+    curl -s -4 --connect-timeout 2 --max-time 5 http://127.0.0.1:8080/ >/dev/null 2>&1 || true
+    
+    # CGI test - Python script (allocate some memory)  
+    curl -s -4 --connect-timeout 2 --max-time 5 http://127.0.0.1:8080/cgi-bin/python/test.py >/dev/null 2>&1 || true
+    
+    # CGI test - Shell script
+    curl -s -4 --connect-timeout 2 --max-time 5 http://127.0.0.1:8080/cgi-bin/shell/test.sh >/dev/null 2>&1 || true
+    
+    echo -n "."
+    sleep 10
+done
+echo ""
 
 # Stop server
 kill -TERM $SERVER_PID 2>/dev/null || true
@@ -93,6 +113,13 @@ echo "Leak summary from valgrind:"
 grep "definitely lost\|indirectly lost" "$VALGRIND_LOG" 2>/dev/null | head -2 || echo "  (could not parse)"
 
 echo ""
+echo "=========================================="
+echo "Detailed Valgrind Output:"
+echo "=========================================="
+grep -A 20 "HEAP SUMMARY" "$VALGRIND_LOG" 2>/dev/null || echo "(Could not parse heap summary)"
+
+echo ""
+echo "=========================================="
 echo "Full log: $VALGRIND_LOG"
 echo ""
 
