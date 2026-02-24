@@ -66,10 +66,14 @@ for i in {1..4}; do
 done
 echo ""
 
-# Stop server
+# Stop server gracefully (allows destructors to run)
 kill -TERM $SERVER_PID 2>/dev/null || true
-sleep 2
-kill -9 $SERVER_PID 2>/dev/null || true
+sleep 3
+
+# Only force kill if still running
+if kill -0 $SERVER_PID 2>/dev/null; then
+    kill -9 $SERVER_PID 2>/dev/null || true
+fi
 
 # Cleanup any remaining
 killall -9 valgrind 2>/dev/null || true

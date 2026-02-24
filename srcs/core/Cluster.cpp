@@ -1,7 +1,7 @@
 #include "Cluster.hpp"
 
-Cluster::Cluster(){}
-Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config) {}
+Cluster::Cluster() : _shutdown(false) {}
+Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config), _shutdown(false) {}
 Cluster::~Cluster()
 {
 	std::vector<int> fds_to_close;
@@ -82,7 +82,7 @@ void	Cluster::run()
 
 	std::vector<std::pair<int, short>> events;
 
-	while (true){
+	while (!_shutdown){
 		int ret = poll(_pollfds.data(), _pollfds.size(), 1000);
 		if (ret < 0){
 			if (errno == EINTR)

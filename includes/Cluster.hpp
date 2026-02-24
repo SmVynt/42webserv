@@ -67,6 +67,8 @@ class Cluster {
 		void	setupCluster();
 		// Main loop with poll()
 		void	run();
+		// Request graceful shutdown
+		void	requestShutdown() { _shutdown = true; }
 	private:
 		// Utils for run()
 		void acceptNewConnection(int listen_fd);
@@ -92,4 +94,8 @@ class Cluster {
 		std::map<int, FDMetadata>	_fd_table;
 		// Map for socket connection between configs or servers
 		std::map<int, int>			_listen_sockets;
+		bool						_shutdown;
 };
+
+// Global pointer for signal handler
+extern Cluster* g_cluster_instance;
