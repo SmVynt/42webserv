@@ -4,11 +4,14 @@ Cluster::Cluster(){}
 Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config) {}
 Cluster::~Cluster()
 {
+	std::vector<int> fds_to_close;
 	for (const auto& pfd : _pollfds)
 	{
 		if (pfd.fd >= 0)
-			close(pfd.fd);
+			fds_to_close.push_back(pfd.fd);
 	}
+	for (int fd : fds_to_close)
+		removeFD(fd);
 }
 void	Cluster::setupCluster()
 {
@@ -77,6 +80,8 @@ void	Cluster::run()
 {
 	Logger::info("--- Server is starting the event loop ---");
 
+	std::vector<std::pair<int, short>> events;
+
 	while (true){
 		int ret = poll(_pollfds.data(), _pollfds.size(), 1000);
 		if (ret < 0){
@@ -85,7 +90,7 @@ void	Cluster::run()
 			throw std::runtime_error("Poll filed: " + std::string(strerror(errno)));
 		}
 
-		std::vector<std::pair<int, short>> events;
+		events.clear();
 		for (const auto& pfd : _pollfds){
 			if (pfd.revents != 0)
 				events.emplace_back(pfd.fd, pfd.revents);
@@ -147,19 +152,29 @@ void Cluster::acceptNewConnection(int listen_fd)
 	int client_fd = accept(listen_fd, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
 
 	if (client_fd < 0){
+		if (errno == EWOULDBLOCK || errno == EAGAIN)
+			return;
 		std::cerr << "Warning: accept() failed: " << strerror(errno) << std::endl;
 		return;
 	}
 	int port = _listen_sockets.at(listen_fd);
 
-	int timeout = 60;
-	int config_index = 0;
-	unsigned long max_body = 1048576;
-	for (const auto& config : _config_data){
-		if (config.port == port){
-			timeout = config.client_timeout;
+	int timeout = DEFAULT_CLIENT_TIMEOUT;
+	int config_index = -1;
+	unsigned long max_body = DEFAULT_MAX_BODY_SIZE;
+
+	for (int idx = 0; idx < static_cast<int>(_config_data.size()); ++idx){
+		if (_config_data[idx].port == port){
+			config_index = idx;
+			timeout = _config_data[idx].client_timeout;
+			max_body = _config_data[idx].client_max_body_size;
 			break;
 		}
+	}
+	if (config_index < 0){
+		Logger::error("No config found for port " + std::to_string(port));
+		close(client_fd);
+		return;
 	}
 	addFD(client_fd, FD_CLIENT, -1, timeout);
 
@@ -176,7 +191,7 @@ void Cluster::acceptNewConnection(int listen_fd)
 
 bool Cluster::handleClientRequest(int fd)
 {
-	char buffer[4096];
+	char buffer[RECV_BUFFER_SIZE];
 
 	ssize_t byte_reads = recv(fd, buffer, sizeof(buffer) - 1, 0);
 
@@ -251,7 +266,7 @@ bool Cluster::handleClientResponse(int fd)
 		return true;
 	}
 	// TO DO: Check if everything was sent or not. If yes delete only sent data
-	ssize_t bytes_sent = send(fd, data.response.getUnsentData(), data.response.getRemainingSize(), 0);
+	ssize_t bytes_sent = send(fd, data.response.getUnsentData(), data.response.getRemainingSize(), MSG_NOSIGNAL);
 
 	if (bytes_sent > 0){
 		// TO DO: Update in updateSentBytes size_t to ssize_t
@@ -289,7 +304,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	pfd.revents = 0;
 	_pollfds.push_back(pfd);
 
-	FDMetadata metadata;
+	FDMetadata metadata = {};
 	metadata.fd = fd;
 	metadata.type = type;
 	metadata.client_state = STATE_READING;
@@ -297,8 +312,8 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.last_activity = time(NULL);
 	metadata.timeout_value = timeout;
 	metadata.is_ready_to_close = false;
-	metadata.port = 0;
-	metadata.config_index = 0;
+	metadata.port = -1;
+	metadata.config_index = -1;
 
 	_fd_table[fd] = metadata;
 }

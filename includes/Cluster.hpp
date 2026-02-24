@@ -18,6 +18,12 @@
 #include "utils.hpp"
 #include "Logger.hpp"
 #include "Methods.hpp"
+
+// Default values (used when config doesn't specify them)
+static const int			DEFAULT_CLIENT_TIMEOUT	= 60;
+static const unsigned long	DEFAULT_MAX_BODY_SIZE	= 1048576; // 1MB
+static const size_t			RECV_BUFFER_SIZE		= 4096;
+
 enum FDType{
 	FD_LISTENER,	// Listening socket: accepts new incoming connections
 	FD_CLIENT,		// Client socket: handles HTTP requests and responses
