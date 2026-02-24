@@ -13,6 +13,8 @@ std::string	Request::getMethod() const {return _method; }
 std::string	Request::getHttpVersion() const {return _http_version; }
 std::string	Request::getPath() const {return _path; }
 std::map<std::string, std::string>	Request::getHeaders() const {return _headers; }
+Request::State	Request::getState() const { return _state; }
+int		Request::getErrorCode() const { return _error_code; }
 
 void	Request::consume(const std::string &new_chunk){
 	_raw_storage += new_chunk;
@@ -162,4 +164,15 @@ void	Request::validate(){
 			_error_code = 400;
 		}
 	}
+}
+
+bool Request::shouldKeepAlive() const{
+	std::map<std::string, std::string>::const_iterator it = _headers.find("connection");
+	if (it != _headers.end()){
+		if (it->second == "close")
+			return false;
+		if (it->second == "keep-alive")
+			return true;
+	}
+	return _http_version == "HTTP/1.1";
 }
