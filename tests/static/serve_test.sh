@@ -102,7 +102,7 @@ test_static_file() {
             else
                 echo -e "${RED}✗${NC} (Status: $status, Wrong type: $content_type, expected: $check_content_type)"
                 FAILED=$((FAILED + 1))
-                return 1
+                return 0
             fi
         else
             echo -e "${GREEN}✓${NC} (Status: $status)"
@@ -112,7 +112,7 @@ test_static_file() {
     else
         echo -e "${RED}✗${NC} (Expected: $expected_status, Got: $status)"
         FAILED=$((FAILED + 1))
-        return 1
+        return 0
     fi
 }
 
@@ -133,7 +133,7 @@ test_file_content() {
     else
         echo -e "${RED}✗${NC} (Content mismatch)"
         FAILED=$((FAILED + 1))
-        return 1
+        return 0
     fi
 }
 
@@ -149,7 +149,7 @@ test_head_request() {
     status=$(echo "$response" | head -n 1 | grep -oP 'HTTP/\d\.\d \K\d+' || echo "000")
 
     # Check if Content-Length is present
-    content_length=$(echo "$response" | grep -i "Content-Length:" | awk '{print $2}' | tr -d '\r')
+    content_length=$(echo "$response" | grep -i "Content-Length:" | awk '{print $2}' | tr -d '\r' || true)
 
     if [ "$status" = "200" ] && [ -n "$content_length" ]; then
         echo -e "${GREEN}✓${NC} (Status: $status, Content-Length: $content_length)"
@@ -158,7 +158,7 @@ test_head_request() {
     else
         echo -e "${RED}✗${NC} (Status: $status)"
         FAILED=$((FAILED + 1))
-        return 1
+        return 0
     fi
 }
 
@@ -293,11 +293,36 @@ echo "Test 11: Concurrent Static File Requests"
 
 echo -n "  Testing 10 concurrent requests... "
 temp_results=$(mktemp)
+pids=()
 
 for i in {1..10}; do
     (curl $CURL_OPTS -w "%{http_code}\n" -o /dev/null "$SERVER_URL/index.html" 2>/dev/null >> "$temp_results" || true) &
+    pids+=($!)
 done
-wait
+
+timeout_sec=10
+end_time=$((SECONDS + timeout_sec))
+while :; do
+    alive=0
+    for pid in "${pids[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            alive=1
+            break
+        fi
+    done
+    if [ $alive -eq 0 ]; then
+        break
+    fi
+    if [ $SECONDS -ge $end_time ]; then
+        echo -e "${YELLOW}⚠${NC} (Timed out waiting for concurrent requests)"
+        for pid in "${pids[@]}"; do
+            kill "$pid" 2>/dev/null || true
+        done
+        wait 2>/dev/null || true
+        break
+    fi
+    sleep 0.1
+done
 
 # Count successful requests
 success_count=$(grep -c "200" "$temp_results" || echo "0")
