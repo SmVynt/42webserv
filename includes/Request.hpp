@@ -36,6 +36,7 @@ public:
 	void	validate();
 
 	bool	isFinished() const;
+	bool	shouldKeepAlive() const;
 
 	void	setMaxBodySize(const unsigned long &num);
 
