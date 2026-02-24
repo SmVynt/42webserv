@@ -239,10 +239,6 @@ bool Cluster::handleClientRequest(int fd)
 
 void Cluster::closeConnection(int fd)
 {
-	if (_fd_table.count(fd)){
-		_fd_table.at(fd).write_buffer.clear();
-	}
-
 	removeFD(fd);
 	Logger::info("[Cluster] Connection closed on [FD " + std::to_string(fd) + "]");
 }
@@ -259,7 +255,6 @@ void Cluster::updatePollEvents(int fd, short events)
 
 bool Cluster::handleClientResponse(int fd)
 {
-	// std::string& response = _fd_table[fd].write_buffer;
 	FDMetadata& data = _fd_table.at(fd);
 	if (data.response.getRemainingSize() == 0){
 		closeConnection(fd);
@@ -273,6 +268,10 @@ bool Cluster::handleClientResponse(int fd)
 		data.response.updateSentBytes(static_cast<size_t>(bytes_sent));
 		if (data.response.isFinished()){
 			Logger::info("Response sent successfully [FD " + std::to_string(fd) + "]");
+			if (data.request.shouldKeepAlive()){
+				resetConnection(fd);
+				return false;
+			}
 			closeConnection(fd);
 			return true;
 		}
@@ -288,6 +287,32 @@ bool Cluster::handleClientResponse(int fd)
 		return true;
 	}
 	return false;
+}
+
+void Cluster::resetConnection(int fd){
+	FDMetadata& data = _fd_table.at(fd);
+
+	// Save socket-level data
+	int saved_port = data.port;
+	int saved_timeout = data.timeout_value;
+	int saved_config = data.config_index;
+	unsigned long saved_max_body = _config_data[saved_config].client_max_body_size;
+
+	// Reset request/response
+	data.request = Request();
+	data.response = Response();
+	data.client_state = STATE_READING;
+
+	// Restore
+	data.port = saved_port;
+	data.timeout_value = saved_timeout;
+	data.config_index = saved_config;
+	data.last_activity = time(NULL);
+	data.request.setMaxBodySize(saved_max_body);
+
+	updatePollEvents(fd, POLLIN);
+
+	Logger::info("Keep-Alive: reset for next request [FD " + std::to_string(fd) + "]");
 }
 
 void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)

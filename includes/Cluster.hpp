@@ -51,7 +51,6 @@ struct FDMetadata{
 	int			config_index;	// index in _config_data vector
 	int			client_fd;		// Associated client socket (links CGI pipes to specific users)
 
-	std::string	write_buffer;	// Buffer for data waiting to be sent when POLLOUT is ready
 	Request		request;		// Request obj
 	Response	response;		// Response obj
 
@@ -81,6 +80,8 @@ class Cluster {
 		void removeFD(int fd);
 		void updateActivity(int fd);
 		void handleTimeout();
+		void resetConnection(int fd);
+
 
 		// Response
 		Response generateErrorResponse(int code, int config_index);
