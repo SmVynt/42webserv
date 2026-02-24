@@ -29,6 +29,7 @@ public:
 	void		setStatusCode(int code);
 	void		setBody(const std::string &body);
 	void		addHeader(const std::string &key, const std::string &value);
+	void		setConnectionHeader(bool keep_alive);
 
 	void		prepare();
 	void		updateSentBytes(size_t sent);

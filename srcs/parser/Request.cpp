@@ -165,3 +165,14 @@ void	Request::validate(){
 		}
 	}
 }
+
+bool Request::shouldKeepAlive() const{
+	std::map<std::string, std::string>::const_iterator it = _headers.find("connection");
+	if (it != _headers.end()){
+		if (it->second == "close")
+			return false;
+		if (it->second == "keep-alive")
+			return true;
+	}
+	return _http_version == "HTTP/1.1";
+}

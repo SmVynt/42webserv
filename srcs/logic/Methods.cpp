@@ -128,13 +128,17 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 	}
 
 	if (req.getMethod() == "GET")
-		return handleGet(req, *loc);
+		res = handleGet(req, *loc);
 	else if (req.getMethod() == "POST")
-		return handlePost(req, *loc);
+		res = handlePost(req, *loc);
 	else if (req.getMethod() == "DELETE")
-		return handleDelete(req, *loc);
+		res = handleDelete(req, *loc);
+	else
+		res.setStatusCode(501);
 
-	res.setStatusCode(501);
+	bool keep_alive = req.shouldKeepAlive();
+	res.setConnectionHeader(keep_alive);
+	
 	return res;
 }
 

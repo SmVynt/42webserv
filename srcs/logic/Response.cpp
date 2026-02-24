@@ -10,6 +10,13 @@ void	Response::setBody(const std::string &body) { _body = body; }
 
 void	Response::addHeader(const std::string &key, const std::string &value) { _headers[key] = value; }
 
+void	Response::setConnectionHeader(bool keep_alive){
+	if (keep_alive)
+		addHeader("Connection", "keep-alive");
+	else
+		addHeader("Connection", "close");
+}
+
 const std::map<int, std::string>	Response::_status_messages = Response::_initStatusMessages();
 
 std::map<int, std::string>	Response::_initStatusMessages(){
