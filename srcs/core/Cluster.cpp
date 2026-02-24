@@ -24,21 +24,17 @@ void	Cluster::setupCluster()
 	_fd_table.clear();
 	_listen_sockets.clear();
 
+	std::set<std::pair<std::string, int>> bound_addresses;
+
 	int error_code = 0;
 	for (const auto& config : _config_data)
 	{
+		std::string host = config.host.empty() ? "0.0.0.0" : config.host;
 		int port = config.port;
-		bool already_open = false;
-		for (const auto& [fd, open_port] : _listen_sockets)
-		{
-			if (port == open_port)
-			{
-				already_open = true;
-				break;
-			}
-		}
-		if (already_open == true)
+
+		if (bound_addresses.count({host, port}))
 			continue;
+
 		int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 		if (socket_fd < 0)
 		{
@@ -55,7 +51,11 @@ void	Cluster::setupCluster()
 		sockaddr_in address{};
 		address.sin_family = AF_INET;
 		address.sin_port = htons(port);
-		address.sin_addr.s_addr = INADDR_ANY;
+		if (host == "0.0.0.0")
+			address.sin_addr.s_addr = INADDR_ANY;
+		else
+			inet_pton(AF_INET, host.c_str(), &address.sin_addr);
+
 		if (bind(socket_fd, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) < 0)
 		{
 			error_code = errno;
@@ -71,8 +71,9 @@ void	Cluster::setupCluster()
 
 		addFD(socket_fd, FD_LISTENER, -1, 0);
 		_listen_sockets[socket_fd] = port;
+		bound_addresses.insert({host, port});
 
-		Logger::info("Listening on port " + std::to_string(port) + " (fd: " + std::to_string(socket_fd) + ")");
+		Logger::info("Listening on port " + host + ":" + std::to_string(port) + " (fd: " + std::to_string(socket_fd) + ")");
 		std::cout << "http://localhost:" << port << std::endl;
 	}
 }
