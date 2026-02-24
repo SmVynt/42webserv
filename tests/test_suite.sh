@@ -206,15 +206,14 @@ run_test_category() {
         set -e
         if [ $status -eq 0 ]; then
             record_test "$category" "PASS"
-            return 0
         else
             record_test "$category" "FAIL"
-            return 1
         fi
+        return 0
     else
         log_warning "Test script not found: $script"
         record_test "$category" "SKIP"
-        return 2
+        return 0
     fi
 }
 
