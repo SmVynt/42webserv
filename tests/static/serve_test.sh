@@ -6,9 +6,10 @@
 set -euo pipefail
 
 # Configuration
-SERVER_HOST="${SERVER_HOST:-localhost}"
+SERVER_HOST="${SERVER_HOST:-127.0.0.1}"
 SERVER_PORT="${SERVER_PORT:-8080}"
 SERVER_URL="http://${SERVER_HOST}:${SERVER_PORT}"
+CURL_OPTS="-4 -sS --connect-timeout 2 --max-time 5"
 
 # Colors
 GREEN='\033[0;32m'
@@ -22,7 +23,7 @@ start_server() {
         echo "Starting server..."
         ../webserv ../config/default.conf &>/dev/null &
         SERVER_PID=$!
-        sleep 2
+        sleep 1
 
         if ! nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then
             echo -e "${RED}[ERROR]${NC} Failed to start server"
@@ -32,6 +33,21 @@ start_server() {
     else
         echo "Server already running"
         SERVER_PID=""
+    fi
+
+    # Wait for HTTP to be responsive (socket open does not guarantee readiness).
+    local ready_code="000"
+    for _ in {1..20}; do
+        ready_code=$(curl $CURL_OPTS -o /dev/null -w "%{http_code}" "$SERVER_URL/" 2>/dev/null || echo "000")
+        if [ "$ready_code" != "000" ]; then
+            break
+        fi
+        sleep 0.2
+    done
+
+    if [ "$ready_code" = "000" ]; then
+        echo -e "${RED}[ERROR]${NC} Server not responding to HTTP requests"
+        exit 1
     fi
 }
 
@@ -59,11 +75,14 @@ test_static_file() {
 
     echo -n "  Testing $description... "
 
-    response=$(curl -s -w "\n%{http_code}\n%{content_type}" "$SERVER_URL$path" 2>/dev/null)
+    response=$(curl $CURL_OPTS -w "\n%{http_code}\n%{content_type}" "$SERVER_URL$path" 2>/dev/null || true)
 
     # Extract status code and content type
     status=$(echo "$response" | tail -n 2 | head -n 1)
     content_type=$(echo "$response" | tail -n 1)
+    if [ -z "$status" ]; then
+        status="000"
+    fi
 
     # Check status code
     if [ "$status" = "$expected_status" ]; then
@@ -71,21 +90,21 @@ test_static_file() {
         if [ -n "$check_content_type" ]; then
             if echo "$content_type" | grep -q "$check_content_type"; then
                 echo -e "${GREEN}✓${NC} (Status: $status, Type: $content_type)"
-                ((PASSED++))
+                PASSED=$((PASSED + 1))
                 return 0
             else
                 echo -e "${RED}✗${NC} (Status: $status, Wrong type: $content_type, expected: $check_content_type)"
-                ((FAILED++))
+                FAILED=$((FAILED + 1))
                 return 1
             fi
         else
             echo -e "${GREEN}✓${NC} (Status: $status)"
-            ((PASSED++))
+            PASSED=$((PASSED + 1))
             return 0
         fi
     else
         echo -e "${RED}✗${NC} (Expected: $expected_status, Got: $status)"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         return 1
     fi
 }
@@ -98,15 +117,15 @@ test_file_content() {
 
     echo -n "  Testing $description... "
 
-    content=$(curl -s "$SERVER_URL$path" 2>/dev/null)
+    content=$(curl $CURL_OPTS "$SERVER_URL$path" 2>/dev/null || true)
 
     if echo "$content" | grep -q "$expected_content"; then
         echo -e "${GREEN}✓${NC}"
-        ((PASSED++))
+        PASSED=$((PASSED + 1))
         return 0
     else
         echo -e "${RED}✗${NC} (Content mismatch)"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         return 1
     fi
 }
@@ -119,7 +138,7 @@ test_head_request() {
     echo -n "  Testing $description... "
 
     # HEAD should return headers but no body
-    response=$(curl -s -I "$SERVER_URL$path" 2>/dev/null)
+    response=$(curl $CURL_OPTS -I "$SERVER_URL$path" 2>/dev/null || true)
     status=$(echo "$response" | head -n 1 | grep -oP 'HTTP/\d\.\d \K\d+' || echo "000")
 
     # Check if Content-Length is present
@@ -127,11 +146,11 @@ test_head_request() {
 
     if [ "$status" = "200" ] && [ -n "$content_length" ]; then
         echo -e "${GREEN}✓${NC} (Status: $status, Content-Length: $content_length)"
-        ((PASSED++))
+        PASSED=$((PASSED + 1))
         return 0
     else
         echo -e "${RED}✗${NC} (Status: $status)"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         return 1
     fi
 }
@@ -224,18 +243,18 @@ test_static_file "Path with encoded slash" "/test%2Ffile" "200"
 echo ""
 echo "Test 9: Range Requests"
 echo -n "  Testing partial content request... "
-response=$(curl -s -H "Range: bytes=0-10" -w "\n%{http_code}" "$SERVER_URL/index.html" 2>/dev/null)
+response=$(curl $CURL_OPTS -H "Range: bytes=0-10" -w "\n%{http_code}" "$SERVER_URL/index.html" 2>/dev/null || true)
 status=$(echo "$response" | tail -n 1)
 
 if [ "$status" = "206" ]; then
     echo -e "${GREEN}✓${NC} (Partial content supported: 206)"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 elif [ "$status" = "200" ]; then
     echo -e "${YELLOW}⚠${NC} (Full content returned: 200 - ranges not supported)"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo -e "${RED}✗${NC} (Unexpected status: $status)"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # Test 10: Large file handling
@@ -249,16 +268,16 @@ fi
 
 echo -n "  Testing 1MB file download... "
 start_time=$(date +%s.%N)
-response=$(curl -s -w "%{http_code}" -o /dev/null "$SERVER_URL/test_files/large.bin" 2>/dev/null)
+response=$(curl $CURL_OPTS -w "%{http_code}" -o /dev/null "$SERVER_URL/test_files/large.bin" 2>/dev/null || true)
 end_time=$(date +%s.%N)
 duration=$(echo "$end_time - $start_time" | bc)
 
 if [ "$response" = "200" ]; then
     echo -e "${GREEN}✓${NC} (Downloaded in ${duration}s)"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo -e "${RED}✗${NC} (Status: $response)"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # Test 11: Multiple simultaneous requests
@@ -269,7 +288,7 @@ echo -n "  Testing 10 concurrent requests... "
 temp_results=$(mktemp)
 
 for i in {1..10}; do
-    (curl -s -w "%{http_code}\n" -o /dev/null "$SERVER_URL/index.html" 2>/dev/null >> "$temp_results") &
+    (curl $CURL_OPTS -w "%{http_code}\n" -o /dev/null "$SERVER_URL/index.html" 2>/dev/null >> "$temp_results" || true) &
 done
 wait
 
@@ -279,10 +298,10 @@ rm "$temp_results"
 
 if [ "$success_count" -eq 10 ]; then
     echo -e "${GREEN}✓${NC} (All 10 successful)"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo -e "${YELLOW}⚠${NC} (Only $success_count/10 successful)"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # Test 12: Connection persistence
@@ -290,15 +309,15 @@ echo ""
 echo "Test 12: Connection Persistence"
 
 echo -n "  Testing keep-alive... "
-response=$(curl -s -H "Connection: keep-alive" -w "\n%{http_code}" "$SERVER_URL/" 2>/dev/null)
+response=$(curl $CURL_OPTS -H "Connection: keep-alive" -w "\n%{http_code}" "$SERVER_URL/" 2>/dev/null || true)
 status=$(echo "$response" | tail -n 1)
 
 if [ "$status" = "200" ]; then
     echo -e "${GREEN}✓${NC} (Keep-alive handled)"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo -e "${RED}✗${NC} (Status: $status)"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # Test 13: Empty file
@@ -316,15 +335,15 @@ echo "Test 14: Server Behavior"
 
 echo -n "  Testing server stability after many requests... "
 for i in {1..100}; do
-    curl -s "$SERVER_URL/" > /dev/null 2>&1
+    curl $CURL_OPTS "$SERVER_URL/" > /dev/null 2>&1 || true
 done
 
 if nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then
     echo -e "${GREEN}✓${NC} (Server stable)"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo -e "${RED}✗${NC} (Server crashed)"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # Cleanup test files

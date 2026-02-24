@@ -57,9 +57,9 @@ simulate_client() {
         response=$(curl -s -w "%{http_code}" -o /dev/null "http://${SERVER_HOST}:${SERVER_PORT}/" 2>/dev/null || echo "000")
 
         if [[ "$response" =~ ^2[0-9][0-9]$ ]]; then
-            ((success_count++))
+            success_count=$((success_count + 1))
         else
-            ((fail_count++))
+            fail_count=$((fail_count + 1))
         fi
     done
 
@@ -146,7 +146,7 @@ for ((i=1; i<=10; i++)); do
                     -w "%{http_code}" -o /dev/null 2>/dev/null || echo "000")
 
     if [[ "$response" =~ ^2[0-9][0-9]$ ]]; then
-        ((KEEPALIVE_SUCCESS++))
+        KEEPALIVE_SUCCESS=$((KEEPALIVE_SUCCESS + 1))
     fi
 done
 
@@ -166,7 +166,7 @@ for ((i=1; i<=50; i++)); do
                     -w "%{http_code}" -o /dev/null 2>/dev/null || echo "000")
 
     if [[ "$response" =~ ^2[0-9][0-9]$ ]]; then
-        ((RAPID_SUCCESS++))
+        RAPID_SUCCESS=$((RAPID_SUCCESS + 1))
     fi
 done
 

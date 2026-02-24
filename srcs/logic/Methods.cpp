@@ -29,7 +29,7 @@ std::string RequestHandler::getMimeType(const std::string &path){
 	else if (ext == ".json")
 		return "application/json";
 	else if (ext == ".txt")
-		return "test/plain";
+		return "text/plain";
 	return "application/octet-stream";
 }
 
@@ -138,7 +138,7 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 
 	bool keep_alive = req.shouldKeepAlive();
 	res.setConnectionHeader(keep_alive);
-	
+
 	return res;
 }
 
