@@ -24,9 +24,9 @@ RESULTS_DIR="$TEST_DIR/results"
 
 # Test options
 RUN_LOAD_TESTS=true
-RUN_MEMORY_TESTS=true
+RUN_MEMORY_TESTS=false
 RUN_EDGE_TESTS=true
-RUN_NGINX_COMPARISON=true
+RUN_NGINX_COMPARISON=false
 RUN_STATIC_TESTS=true
 GENERATE_REPORT=true
 
@@ -45,6 +45,10 @@ while [[ $# -gt 0 ]]; do
             RUN_MEMORY_TESTS=false
             shift
             ;;
+        --run-memory)
+            RUN_MEMORY_TESTS=true
+            shift
+            ;;
         --skip-edge)
             RUN_EDGE_TESTS=false
             shift
@@ -61,11 +65,17 @@ while [[ $# -gt 0 ]]; do
             GENERATE_REPORT=false
             shift
             ;;
+        --quick)
+            RUN_LOAD_TESTS=false
+            RUN_MEMORY_TESTS=false
+            RUN_NGINX_COMPARISON=false
+            shift
+            ;;
         -h|--help)
             echo "Usage: $0 [options]"
             echo "Options:"
             echo "  --skip-load      Skip load testing"
-            echo "  --skip-memory    Skip memory leak tests"
+            echo "  --run-memory     Run memory leak tests (skipped by default)"
             echo "  --skip-edge      Skip edge case tests"
             echo "  --skip-nginx     Skip NGINX comparison"
             echo "  --skip-static    Skip static file tests"

@@ -63,7 +63,24 @@ stop_server() {
     if [ -n "$SERVER_PID" ]; then
         echo "Stopping server..."
         kill $SERVER_PID 2>/dev/null || true
-        wait $SERVER_PID 2>/dev/null || true
+
+        # Wait with timeout
+        local timeout=3
+        while kill -0 $SERVER_PID 2>/dev/null && [ $timeout -gt 0 ]; do
+            sleep 0.1
+            timeout=$((timeout - 1))
+        done
+
+        # Force kill if still running
+        if kill -0 $SERVER_PID 2>/dev/null; then
+            kill -9 $SERVER_PID 2>/dev/null || true
+            sleep 0.2
+        fi
+
+        # Only wait if process still exists
+        if kill -0 $SERVER_PID 2>/dev/null; then
+            wait $SERVER_PID 2>/dev/null || true
+        fi
     fi
 }
 
