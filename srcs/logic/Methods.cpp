@@ -114,16 +114,23 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 		res.setStatusCode(404);
 		return res;
 	}
+	
 	bool allowed_method = false;
-	for (size_t i = 0; i < loc->methods.size(); i++) {
-		if (loc->methods[i] == req.getMethod()) {
+	std::string allowed_list = "";
+	for (size_t i = 0; i < loc->methods.size(); i++){
+		if (i > 0)
+			allowed_list += ", ";
+
+		allowed_list += loc->methods[i];
+		if (loc->methods[i] == req.getMethod()){
 			allowed_method = true;
-			break;
 		}
 	}
 
 	if (!allowed_method){
 		res.setStatusCode(405);
+		res.addHeader("Allow", allowed_list);
+		res.setBody("405 Method Not Allowed: Use " + allowed_list);
 		return res;
 	}
 
@@ -138,7 +145,7 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 
 	bool keep_alive = req.shouldKeepAlive();
 	res.setConnectionHeader(keep_alive);
-	
+
 	return res;
 }
 
