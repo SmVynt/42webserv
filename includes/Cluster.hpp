@@ -95,7 +95,8 @@ class Cluster {
 		std::map<int, FDMetadata>	_fd_table;
 		// Map for socket connection between configs or servers
 		std::map<int, int>			_listen_sockets;
-		bool						_shutdown;
+		// bool						_shutdown;
+		volatile sig_atomic_t		_shutdown;
 };
 
 Cluster*&	cluster_reference();

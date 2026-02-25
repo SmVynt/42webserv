@@ -142,6 +142,8 @@ void	Cluster::run()
 			}
 		}
 	}
+
+	Logger::info("Shutdown requested. Server will stop accepting new connections and close existing ones.");
 }
 
 void Cluster::acceptNewConnection(int listen_fd)
@@ -407,7 +409,6 @@ Response Cluster::generateErrorResponse(int code, int config_index) {
 
 void	Cluster::requestShutdown() {
 	_shutdown = true;
-	Logger::info("Shutdown requested. Server will stop accepting new connections and close existing ones.");
 }
 
 Cluster*&	cluster_reference() {
