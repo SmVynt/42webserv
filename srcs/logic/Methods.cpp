@@ -113,8 +113,16 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 	if (!loc){
 		res.setStatusCode(404);
 		return res;
+	}	
+
+	if (!loc->redirection.second.empty()){
+		int code = loc->redirection.first;
+		res.setStatusCode(code ? code : 302);
+		res.addHeader("Location", loc->redirection.second);
+		res.setBody("Redirecting to " + loc->redirection.second);
+		return res;
 	}
-	
+
 	bool allowed_method = false;
 	std::string allowed_list = "";
 	for (size_t i = 0; i < loc->methods.size(); i++){
