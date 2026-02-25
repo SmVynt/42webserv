@@ -4,18 +4,6 @@
 #include "VirtualServer.hpp"
 #include "Cluster.hpp"
 
-// Global for signal handling
-Cluster* g_cluster_instance = nullptr;
-
-// Signal handler for graceful shutdown
-void signal_handler(int sig) {
-	if (sig == SIGTERM || sig == SIGINT) {
-		if (g_cluster_instance) {
-			g_cluster_instance->requestShutdown();
-		}
-	}
-}
-
 int main(int argc, char **argv) {
 	if (argc > 2) {
 		std::cerr << "Usage: " << argv[0] << " [config_file]" << std::endl;
@@ -30,7 +18,7 @@ int main(int argc, char **argv) {
 		// reqChunkedHardcode();
 
 		Cluster webserv(servers);
-		g_cluster_instance = &webserv;
+		cluster_reference() = &webserv;
 
 		// Register signal handlers for graceful shutdown
 		std::signal(SIGTERM, signal_handler);
@@ -40,8 +28,7 @@ int main(int argc, char **argv) {
 
 		webserv.run();
 
-		// Cleanup
-		g_cluster_instance = nullptr;
+		cluster_reference() = nullptr;
 
 	} catch(std::exception &e){
 		std::cout << e.what() << std::endl;

@@ -404,3 +404,21 @@ Response Cluster::generateErrorResponse(int code, int config_index) {
 	res.makeDefaultError(code);
 	return res;
 }
+
+void	Cluster::requestShutdown() {
+	_shutdown = true;
+	Logger::info("Shutdown requested. Server will stop accepting new connections and close existing ones.");
+}
+
+Cluster*&	cluster_reference() {
+	static Cluster* instance = nullptr;
+	return instance;
+}
+
+void	signal_handler(int sig) {
+	if (sig == SIGTERM || sig == SIGINT) {
+		if (cluster_reference()) {
+			 cluster_reference()->requestShutdown();
+		}
+	}
+}

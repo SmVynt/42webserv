@@ -18,6 +18,7 @@
 #include "utils.hpp"
 #include "Logger.hpp"
 #include "Methods.hpp"
+#include <csignal>
 
 // Default values (used when config doesn't specify them)
 static const int			DEFAULT_CLIENT_TIMEOUT	= 60;
@@ -68,7 +69,7 @@ class Cluster {
 		// Main loop with poll()
 		void	run();
 		// Request graceful shutdown
-		void	requestShutdown() { _shutdown = true; }
+		void	requestShutdown();
 	private:
 		// Utils for run()
 		void acceptNewConnection(int listen_fd);
@@ -97,5 +98,5 @@ class Cluster {
 		bool						_shutdown;
 };
 
-// Global pointer for signal handler
-extern Cluster* g_cluster_instance;
+Cluster*&	cluster_reference();
+void		signal_handler(int sig);
