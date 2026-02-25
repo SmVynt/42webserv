@@ -24,6 +24,9 @@ std::map<int, std::string>	Response::_initStatusMessages(){
 	m[200] = "OK";
 	m[201] = "Created";
 	m[301] = "Moved Permanently";
+	m[302] = "Found";
+	m[307] = "Temporary Redirect";
+	m[308] = "Permanent Redirect";
 	m[400] = "Bad Request";
 	m[403] = "Forbidden";
 	m[404] = "Not Found";

@@ -114,6 +114,15 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 		res.setStatusCode(404);
 		return res;
 	}
+
+	if (!loc->redirection.second.empty()){
+		int code = loc->redirection.first;
+		res.setStatusCode(code ? code : 302);
+		res.addHeader("Location", loc->redirection.second);
+		res.setBody("Redirecting to " + loc->redirection.second);
+		return res;
+	}
+
 	bool allowed_method = false;
 	for (size_t i = 0; i < loc->methods.size(); i++) {
 		if (loc->methods[i] == req.getMethod()) {
@@ -138,7 +147,7 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 
 	bool keep_alive = req.shouldKeepAlive();
 	res.setConnectionHeader(keep_alive);
-	
+
 	return res;
 }
 
