@@ -214,6 +214,14 @@ bool Cluster::handleClientRequest(int fd)
 			updatePollEvents(fd, POLLOUT);
 		}
 		else {
+			std::string host = data.request.getHeaders("host");
+			size_t colon = host.find(':');
+			if (colon != std::string::npos)
+				host = host.substr(0, colon);
+
+			int resolved = resolveServerConfig(data.port, host);
+			if (resolved >= 0)
+				data.config_index = resolved;
 			Logger::info("Request " + data.request.getMethod() + " " +
 			data.request.getPath() + " fully recieved [FD " + std::to_string(fd) + "]");
 			data.client_state = STATE_PROCESSING;
@@ -236,6 +244,24 @@ bool Cluster::handleClientRequest(int fd)
 		return true;
 	}
 	return false;
+}
+
+int Cluster::resolveServerConfig(int port, const std::string& host){
+	int default_config = -1;
+
+	for (int idx = 0; idx < static_cast<int>(_config_data.size()); ++idx)
+	{
+		if (_config_data[idx].port != port)
+			continue;
+		if (default_config < 0)
+			default_config = idx;
+		for (const auto& name : _config_data[idx].server_names)
+		{
+			if (name == host)
+				return idx;
+		}
+	}
+	return default_config;
 }
 
 void Cluster::closeConnection(int fd)
