@@ -27,7 +27,7 @@ void	Request::consume(const std::string &new_chunk){
 	_raw_storage += new_chunk;
 	// std::cout << _raw_storage << std::endl;
 
-	while (true){
+	while (_state != ERROR && _state != DONE){
 		// std::cout << _raw_storage << std::endl;
 		if (_state == METHOD_LINE){
 			size_t pos = _raw_storage.find("\r\n");
@@ -48,6 +48,8 @@ void	Request::consume(const std::string &new_chunk){
 			_raw_storage.erase(0, pos + 2);
 			if (line.empty()) {
 				validate();
+				if (_state == ERROR)
+					break;
 				if (_headers.count("transfer-encoding") && _headers["transfer-encoding"] == "chunked")
 					_state = CHUNK_SIZE;
 				else if (_headers.count("content-length"))
