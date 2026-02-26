@@ -20,9 +20,7 @@
 #include "Methods.hpp"
 #include <csignal>
 
-// Default values (used when config doesn't specify them)
-static const int			DEFAULT_CLIENT_TIMEOUT	= 60;
-static const unsigned long	DEFAULT_MAX_BODY_SIZE	= 1048576; // 1MB
+// Default value
 static const size_t			RECV_BUFFER_SIZE		= 4096;
 
 enum FDType{

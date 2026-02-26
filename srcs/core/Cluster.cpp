@@ -181,7 +181,6 @@ void Cluster::acceptNewConnection(int listen_fd)
 	}
 	addFD(client_fd, FD_CLIENT, -1, timeout);
 
-	// Init data that addFD() doesn't know;
 	FDMetadata& data = _fd_table[client_fd];
 	data.port = port;
 	data.config_index = config_index;
@@ -240,9 +239,9 @@ bool Cluster::handleClientRequest(int fd)
 		closeConnection(fd);
 		return true;
 	}
-	if (errno != EWOULDBLOCK && errno != EAGAIN){
-		Logger::error("recv() failed [FD " + std::to_string(fd) + "]: " + std::string(strerror(errno)));
-		closeConnection(fd);
+
+	if (byte_reads < 0){
+		Logger::error("recv() failed [FD " + std::to_string(fd) + "]");
 		return true;
 	}
 	return false;
@@ -289,11 +288,9 @@ bool Cluster::handleClientResponse(int fd)
 		closeConnection(fd);
 		return true;
 	}
-	// TO DO: Check if everything was sent or not. If yes delete only sent data
 	ssize_t bytes_sent = send(fd, data.response.getUnsentData(), data.response.getRemainingSize(), MSG_NOSIGNAL);
 
 	if (bytes_sent > 0){
-		// TO DO: Update in updateSentBytes size_t to ssize_t
 		data.response.updateSentBytes(static_cast<size_t>(bytes_sent));
 		if (data.response.isFinished()){
 			Logger::info("Response sent successfully [FD " + std::to_string(fd) + "]");
@@ -310,9 +307,9 @@ bool Cluster::handleClientResponse(int fd)
 		closeConnection(fd);
 		return true;
 	}
-	if (errno != EWOULDBLOCK && errno != EAGAIN) {
-		Logger::error("Send failed [FD " + std::to_string(fd) + "]");
+	if (bytes_sent < 0){
 		closeConnection(fd);
+		Logger::error("Send failed [FD " + std::to_string(fd) + "]");
 		return true;
 	}
 	return false;
