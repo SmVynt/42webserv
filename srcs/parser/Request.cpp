@@ -1,6 +1,6 @@
 #include "Request.hpp"
 
-Request::Request(): _state(METHOD_LINE) {}
+Request::Request(): _state(METHOD_LINE), _error_code(0) {}
 
 Request::~Request() {}
 
@@ -83,7 +83,8 @@ void	Request::consume(const std::string &new_chunk){
 				_current_chunk_size = std::stoul(hex_str, nullptr, 16);
 			} catch(...){
 				_state = ERROR;
-				_error_code = 600;
+				// _error_code = 600;
+				_error_code = 400;
 				break;
 			}
 			_raw_storage.erase(0, pos + 2);
