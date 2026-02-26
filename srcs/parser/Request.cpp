@@ -13,6 +13,13 @@ std::string	Request::getMethod() const {return _method; }
 std::string	Request::getHttpVersion() const {return _http_version; }
 std::string	Request::getPath() const {return _path; }
 std::map<std::string, std::string>	Request::getHeaders() const {return _headers; }
+std::string	Request::getHeaders(const std::string& key) const
+{
+	auto it = _headers.find(key);
+	if (it == _headers.end())
+		return "";
+	return it->second;
+}
 Request::State	Request::getState() const { return _state; }
 int		Request::getErrorCode() const { return _error_code; }
 
