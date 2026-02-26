@@ -83,7 +83,6 @@ void	Request::consume(const std::string &new_chunk){
 				_current_chunk_size = std::stoul(hex_str, nullptr, 16);
 			} catch(...){
 				_state = ERROR;
-				// _error_code = 600;
 				_error_code = 400;
 				break;
 			}
