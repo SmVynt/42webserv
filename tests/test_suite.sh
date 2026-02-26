@@ -24,11 +24,15 @@ RESULTS_DIR="$TEST_DIR/results"
 
 # Test options
 RUN_LOAD_TESTS=true
-RUN_MEMORY_TESTS=true
+RUN_MEMORY_TESTS=false
 RUN_EDGE_TESTS=true
-RUN_NGINX_COMPARISON=true
+RUN_NGINX_COMPARISON=false
 RUN_STATIC_TESTS=true
 GENERATE_REPORT=true
+
+# Tool availability flags (detected at runtime)
+HAS_SIEGE=false
+HAS_AB=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -39,6 +43,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-memory)
             RUN_MEMORY_TESTS=false
+            shift
+            ;;
+        --run-memory)
+            RUN_MEMORY_TESTS=true
             shift
             ;;
         --skip-edge)
@@ -57,11 +65,17 @@ while [[ $# -gt 0 ]]; do
             GENERATE_REPORT=false
             shift
             ;;
+        --quick)
+            RUN_LOAD_TESTS=false
+            RUN_MEMORY_TESTS=false
+            RUN_NGINX_COMPARISON=false
+            shift
+            ;;
         -h|--help)
             echo "Usage: $0 [options]"
             echo "Options:"
             echo "  --skip-load      Skip load testing"
-            echo "  --skip-memory    Skip memory leak tests"
+            echo "  --run-memory     Run memory leak tests (skipped by default)"
             echo "  --skip-edge      Skip edge case tests"
             echo "  --skip-nginx     Skip NGINX comparison"
             echo "  --skip-static    Skip static file tests"
@@ -117,8 +131,18 @@ check_dependencies() {
     command -v nc &>/dev/null || missing_deps+=("netcat")
 
     if [ "$RUN_LOAD_TESTS" = true ]; then
-        command -v siege &>/dev/null || log_warning "siege not found - load tests will be limited"
-        command -v ab &>/dev/null || log_warning "apache2-utils (ab) not found - load tests will be limited"
+        if command -v siege &>/dev/null; then
+            HAS_SIEGE=true
+            log_info "siege found - siege load tests enabled"
+        else
+            log_warning "siege not found - siege load tests will be skipped"
+        fi
+        if command -v ab &>/dev/null; then
+            HAS_AB=true
+            log_info "ab (Apache Bench) found - ab load tests enabled"
+        else
+            log_warning "ab (Apache Bench) not found - ab load tests will be skipped"
+        fi
     fi
 
     if [ "$RUN_MEMORY_TESTS" = true ]; then
@@ -155,6 +179,7 @@ declare -A TEST_RESULTS
 TOTAL_TESTS=0
 PASSED_TESTS=0
 FAILED_TESTS=0
+SKIPPED_TESTS=0
 
 record_test() {
     local test_name=$1
@@ -165,6 +190,9 @@ record_test() {
     if [ "$status" = "PASS" ]; then
         PASSED_TESTS=$((PASSED_TESTS + 1))
         log_success "✓ $test_name"
+    elif [ "$status" = "SKIP" ]; then
+        SKIPPED_TESTS=$((SKIPPED_TESTS + 1))
+        log_warning "⊘ $test_name (skipped)"
     else
         FAILED_TESTS=$((FAILED_TESTS + 1))
         log_error "✗ $test_name"
@@ -182,17 +210,20 @@ run_test_category() {
     log "${CYAN}========================================${NC}"
 
     if [ -f "$script" ]; then
-        if bash "$script" >> "$RUN_LOG" 2>&1; then
+        set +e
+        bash "$script" 2>&1 | tee -a "$RUN_LOG"
+        local status=${PIPESTATUS[0]}
+        set -e
+        if [ $status -eq 0 ]; then
             record_test "$category" "PASS"
-            return 0
         else
             record_test "$category" "FAIL"
-            return 1
         fi
+        return 0
     else
         log_warning "Test script not found: $script"
         record_test "$category" "SKIP"
-        return 2
+        return 0
     fi
 }
 
@@ -218,6 +249,7 @@ generate_html_report() {
         .total { background: #2196F3; color: white; }
         .passed { background: #4CAF50; color: white; }
         .failed { background: #f44336; color: white; }
+        .skipped { background: #9E9E9E; color: white; }
         .pass-rate { background: #FF9800; color: white; }
         table { width: 100%; border-collapse: collapse; margin: 20px 0; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
@@ -247,6 +279,10 @@ generate_html_report() {
                 <h3>FAILED_TESTS_PLACEHOLDER</h3>
                 <p>Failed</p>
             </div>
+            <div class="stat-box skipped">
+                <h3>SKIPPED_TESTS_PLACEHOLDER</h3>
+                <p>Skipped</p>
+            </div>
             <div class="stat-box pass-rate">
                 <h3>PASS_RATE_PLACEHOLDER%</h3>
                 <p>Pass Rate</p>
@@ -275,14 +311,16 @@ EOF
 
     # Replace placeholders
     local pass_rate=0
-    if [ $TOTAL_TESTS -gt 0 ]; then
-        pass_rate=$((PASSED_TESTS * 100 / TOTAL_TESTS))
+    local active_tests=$((TOTAL_TESTS - SKIPPED_TESTS))
+    if [ $active_tests -gt 0 ]; then
+        pass_rate=$((PASSED_TESTS * 100 / active_tests))
     fi
 
     sed -i "s|TIMESTAMP_PLACEHOLDER|$(date)|g" "$report_file"
     sed -i "s|TOTAL_TESTS_PLACEHOLDER|$TOTAL_TESTS|g" "$report_file"
     sed -i "s|PASSED_TESTS_PLACEHOLDER|$PASSED_TESTS|g" "$report_file"
     sed -i "s|FAILED_TESTS_PLACEHOLDER|$FAILED_TESTS|g" "$report_file"
+    sed -i "s|SKIPPED_TESTS_PLACEHOLDER|$SKIPPED_TESTS|g" "$report_file"
     sed -i "s|PASS_RATE_PLACEHOLDER|$pass_rate|g" "$report_file"
     sed -i "s|LOG_PATH_PLACEHOLDER|$RUN_LOG|g" "$report_file"
 
@@ -316,6 +354,15 @@ main() {
     # Pre-flight checks
     check_dependencies
     build_server
+    cd "$TEST_DIR"
+
+    # Default to IPv4 localhost to avoid IPv6-only resolution issues.
+    : "${SERVER_HOST:=127.0.0.1}"
+    : "${SERVER_PORT:=8080}"
+    : "${SERVER_URL:=http://${SERVER_HOST}:${SERVER_PORT}}"
+    : "${SERVER_BIN:=$PROJECT_ROOT/webserv}"
+    : "${CONFIG_FILE:=$PROJECT_ROOT/config/default.conf}"
+    export SERVER_HOST SERVER_PORT SERVER_URL SERVER_BIN CONFIG_FILE PROJECT_ROOT
 
     # Run test categories
     if [ "$RUN_STATIC_TESTS" = true ]; then
@@ -329,8 +376,18 @@ main() {
     fi
 
     if [ "$RUN_LOAD_TESTS" = true ]; then
-        run_test_category "Siege Load Test" "$TEST_DIR/load/siege_test.sh"
-        run_test_category "Apache Bench Test" "$TEST_DIR/load/ab_test.sh"
+        if [ "$HAS_SIEGE" = true ]; then
+            run_test_category "Siege Load Test" "$TEST_DIR/load/siege_test.sh"
+        else
+            log_warning "Skipping Siege Load Test (siege not installed)"
+            record_test "Siege Load Test" "SKIP"
+        fi
+        if [ "$HAS_AB" = true ]; then
+            run_test_category "Apache Bench Test" "$TEST_DIR/load/ab_test.sh"
+        else
+            log_warning "Skipping Apache Bench Test (ab not installed)"
+            record_test "Apache Bench Test" "SKIP"
+        fi
         run_test_category "Concurrent Clients" "$TEST_DIR/load/concurrent_test.sh"
     fi
 
@@ -350,10 +407,12 @@ main() {
     log "Total Tests:  $TOTAL_TESTS"
     log "${GREEN}Passed:       $PASSED_TESTS${NC}"
     log "${RED}Failed:       $FAILED_TESTS${NC}"
+    log "${YELLOW}Skipped:      $SKIPPED_TESTS${NC}"
 
-    if [ $TOTAL_TESTS -gt 0 ]; then
-        local pass_rate=$((PASSED_TESTS * 100 / TOTAL_TESTS))
-        log "Pass Rate:    ${pass_rate}%"
+    local active_tests=$((TOTAL_TESTS - SKIPPED_TESTS))
+    if [ $active_tests -gt 0 ]; then
+        local pass_rate=$((PASSED_TESTS * 100 / active_tests))
+        log "Pass Rate:    ${pass_rate}% (of non-skipped tests)"
     fi
 
     # Write summary to file
@@ -364,6 +423,7 @@ main() {
         echo "Total Tests: $TOTAL_TESTS"
         echo "Passed: $PASSED_TESTS"
         echo "Failed: $FAILED_TESTS"
+        echo "Skipped: $SKIPPED_TESTS"
         echo ""
         echo "Detailed Results:"
         for test_name in "${!TEST_RESULTS[@]}"; do

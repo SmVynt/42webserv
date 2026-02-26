@@ -6,7 +6,13 @@
 set -euo pipefail
 
 # Configuration
-SERVER_URL="${SERVER_URL:-http://localhost:8080}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+SERVER_BIN="${SERVER_BIN:-$PROJECT_ROOT/webserv}"
+CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/config/default.conf}"
+SERVER_HOST="${SERVER_HOST:-127.0.0.1}"
+SERVER_PORT="${SERVER_PORT:-8080}"
+SERVER_URL="${SERVER_URL:-http://${SERVER_HOST}:${SERVER_PORT}}"
 TEST_DURATION="${TEST_DURATION:-30s}"
 LOG_FILE="${LOG_FILE:-/tmp/siege_test.log}"
 
@@ -24,13 +30,13 @@ fi
 
 # Start server if not running
 start_server() {
-    if ! nc -z localhost 8080 2>/dev/null; then
+    if ! nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then
         echo "Starting server..."
-        ../webserv ../config/default.conf &>/dev/null &
+        "$SERVER_BIN" "$CONFIG_FILE" &>/dev/null &
         SERVER_PID=$!
         sleep 2
 
-        if ! nc -z localhost 8080 2>/dev/null; then
+        if ! nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then
             echo -e "${RED}[ERROR]${NC} Failed to start server"
             exit 1
         fi
@@ -46,7 +52,24 @@ stop_server() {
     if [ -n "$SERVER_PID" ]; then
         echo "Stopping server..."
         kill $SERVER_PID 2>/dev/null || true
-        wait $SERVER_PID 2>/dev/null || true
+
+        # Wait with timeout
+        local timeout=3
+        while kill -0 $SERVER_PID 2>/dev/null && [ $timeout -gt 0 ]; do
+            sleep 0.1
+            timeout=$((timeout - 1))
+        done
+
+        # Force kill if still running
+        if kill -0 $SERVER_PID 2>/dev/null; then
+            kill -9 $SERVER_PID 2>/dev/null || true
+            sleep 0.2
+        fi
+
+        # Only wait if process still exists
+        if kill -0 $SERVER_PID 2>/dev/null; then
+            wait $SERVER_PID 2>/dev/null || true
+        fi
     fi
 }
 

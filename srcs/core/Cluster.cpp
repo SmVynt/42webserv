@@ -1,7 +1,7 @@
 #include "Cluster.hpp"
 
-Cluster::Cluster(){}
-Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config) {}
+Cluster::Cluster() : _shutdown(false) {}
+Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config), _shutdown(false) {}
 Cluster::~Cluster()
 {
 	std::vector<int> fds_to_close;
@@ -83,7 +83,7 @@ void	Cluster::run()
 
 	std::vector<std::pair<int, short>> events;
 
-	while (true){
+	while (!_shutdown){
 		int ret = poll(_pollfds.data(), _pollfds.size(), 1000);
 		if (ret < 0){
 			if (errno == EINTR)
@@ -143,6 +143,8 @@ void	Cluster::run()
 			}
 		}
 	}
+
+	Logger::info("Shutdown requested. Server will stop accepting new connections and close existing ones.");
 }
 
 void Cluster::acceptNewConnection(int listen_fd)
@@ -430,4 +432,21 @@ Response Cluster::generateErrorResponse(int code, int config_index) {
 
 	res.makeDefaultError(code);
 	return res;
+}
+
+void	Cluster::requestShutdown() {
+	_shutdown = true;
+}
+
+Cluster*&	cluster_reference() {
+	static Cluster* instance = nullptr;
+	return instance;
+}
+
+void	signal_handler(int sig) {
+	if (sig == SIGTERM || sig == SIGINT) {
+		if (cluster_reference()) {
+			 cluster_reference()->requestShutdown();
+		}
+	}
 }

@@ -6,7 +6,11 @@
 set -euo pipefail
 
 # Configuration
-SERVER_HOST="${SERVER_HOST:-localhost}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+SERVER_BIN="${SERVER_BIN:-$PROJECT_ROOT/webserv}"
+CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/config/default.conf}"
+SERVER_HOST="${SERVER_HOST:-127.0.0.1}"
 SERVER_PORT="${SERVER_PORT:-8080}"
 NUM_CLIENTS="${NUM_CLIENTS:-100}"
 REQUESTS_PER_CLIENT="${REQUESTS_PER_CLIENT:-10}"
@@ -21,7 +25,7 @@ NC='\033[0m'
 start_server() {
     if ! nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then
         echo "Starting server..."
-        ../webserv ../config/default.conf &>/dev/null &
+        "$SERVER_BIN" "$CONFIG_FILE" &>/dev/null &
         SERVER_PID=$!
         sleep 2
 
@@ -41,9 +45,26 @@ stop_server() {
     if [ -n "$SERVER_PID" ]; then
         echo "Stopping server..."
         kill $SERVER_PID 2>/dev/null || true
-        wait $SERVER_PID 2>/dev/null || true
+
+        # Wait with timeout
+        local timeout=3
+        while kill -0 $SERVER_PID 2>/dev/null && [ $timeout -gt 0 ]; do
+            sleep 0.1
+            timeout=$((timeout - 1))
+        done
+
+        # Force kill if still running
+        if kill -0 $SERVER_PID 2>/dev/null; then
+            kill -9 $SERVER_PID 2>/dev/null || true
+            sleep 0.2
+        fi
+
+        # Only wait if process still exists
+        if kill -0 $SERVER_PID 2>/dev/null; then
+            wait $SERVER_PID 2>/dev/null || true
+        fi
     fi
-}
+
 
 trap stop_server EXIT
 
@@ -57,9 +78,9 @@ simulate_client() {
         response=$(curl -s -w "%{http_code}" -o /dev/null "http://${SERVER_HOST}:${SERVER_PORT}/" 2>/dev/null || echo "000")
 
         if [[ "$response" =~ ^2[0-9][0-9]$ ]]; then
-            ((success_count++))
+            success_count=$((success_count + 1))
         else
-            ((fail_count++))
+            fail_count=$((fail_count + 1))
         fi
     done
 
@@ -146,7 +167,7 @@ for ((i=1; i<=10; i++)); do
                     -w "%{http_code}" -o /dev/null 2>/dev/null || echo "000")
 
     if [[ "$response" =~ ^2[0-9][0-9]$ ]]; then
-        ((KEEPALIVE_SUCCESS++))
+        KEEPALIVE_SUCCESS=$((KEEPALIVE_SUCCESS + 1))
     fi
 done
 
@@ -166,7 +187,7 @@ for ((i=1; i<=50; i++)); do
                     -w "%{http_code}" -o /dev/null 2>/dev/null || echo "000")
 
     if [[ "$response" =~ ^2[0-9][0-9]$ ]]; then
-        ((RAPID_SUCCESS++))
+        RAPID_SUCCESS=$((RAPID_SUCCESS + 1))
     fi
 done
 

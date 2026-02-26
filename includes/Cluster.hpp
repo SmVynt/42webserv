@@ -18,6 +18,7 @@
 #include "utils.hpp"
 #include "Logger.hpp"
 #include "Methods.hpp"
+#include <csignal>
 
 // Default values (used when config doesn't specify them)
 static const int			DEFAULT_CLIENT_TIMEOUT	= 60;
@@ -67,6 +68,8 @@ class Cluster {
 		void	setupCluster();
 		// Main loop with poll()
 		void	run();
+		// Request graceful shutdown
+		void	requestShutdown();
 	private:
 		// Utils for run()
 		void acceptNewConnection(int listen_fd);
@@ -93,4 +96,9 @@ class Cluster {
 		std::map<int, FDMetadata>	_fd_table;
 		// Map for socket connection between configs or servers
 		std::map<int, int>			_listen_sockets;
+		// bool						_shutdown;
+		volatile sig_atomic_t		_shutdown;
 };
+
+Cluster*&	cluster_reference();
+void		signal_handler(int sig);

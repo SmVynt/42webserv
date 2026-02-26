@@ -29,7 +29,7 @@ std::string RequestHandler::getMimeType(const std::string &path){
 	else if (ext == ".json")
 		return "application/json";
 	else if (ext == ".txt")
-		return "test/plain";
+		return "text/plain";
 	return "application/octet-stream";
 }
 

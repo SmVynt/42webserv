@@ -1,4 +1,5 @@
 #include <iostream>
+#include <csignal>
 #include "Request.hpp"
 #include "VirtualServer.hpp"
 #include "Cluster.hpp"
@@ -17,10 +18,20 @@ int main(int argc, char **argv) {
 		// reqChunkedHardcode();
 
 		Cluster webserv(servers);
+		cluster_reference() = &webserv;
+
+		// Register signal handlers for graceful shutdown
+		struct sigaction sa{};
+		sa.sa_handler = signal_handler;
+		sigemptyset(&sa.sa_mask);
+		sigaction(SIGTERM, &sa, NULL);
+		sigaction(SIGINT, &sa, NULL);
 
 		webserv.setupCluster();
 
 		webserv.run();
+
+		cluster_reference() = nullptr;
 
 	} catch(std::exception &e){
 		std::cout << e.what() << std::endl;

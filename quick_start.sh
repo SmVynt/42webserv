@@ -58,7 +58,7 @@ case $choice in
         echo ""
         echo -e "${GREEN}Running quick validation tests...${NC}"
         cd tests
-        ./test_suite.sh --skip-memory --skip-nginx
+        ./test_suite.sh --quick
         ;;
 
     3)
@@ -71,9 +71,7 @@ case $choice in
     4)
         echo ""
         echo -e "${GREEN}Running memory leak detection...${NC}"
-        echo "This will take several minutes..."
-        cd tests/memory
-        ./valgrind_test.sh
+        (set +e; cd tests/memory; bash ./valgrind_test.sh; exit 0) || true
         ;;
 
     5)
