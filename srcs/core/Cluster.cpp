@@ -463,6 +463,36 @@ Response Cluster::generateErrorResponse(int code, int config_index) {
 	return res;
 }
 
+void	Cluster::handleCgiRead(int cgi_fd)
+{
+	FDMetadata& data = _fd_table.at(cgi_fd);
+
+	if (_fd_table.find(data.client_fd) == _fd_table.end())
+	{
+		removeFD(cgi_fd);
+		return;
+	}
+
+	char buffer[RECV_BUFFER_SIZE];
+	ssize_t bytes = read(cgi_fd, buffer, sizeof(buffer));
+
+	if (bytes > 0)
+	{
+		data.cgi_raw_output.append(buffer, bytes);
+		updateActivity(cgi_fd);
+		updateActivity(data.client_fd);
+	}
+	else if (bytes == 0)
+	{
+		handleCgiEnd(cgi_fd);
+	}
+	else
+	{
+		Logger::error("CGI read error on pipe " + std::to_string(cgi_fd));
+		handleCgiEnd(cgi_fd);
+	}
+}
+
 void	Cluster::requestShutdown() {
 	_shutdown = true;
 }

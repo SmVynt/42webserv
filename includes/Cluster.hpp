@@ -88,6 +88,9 @@ class Cluster {
 		void handleTimeout();
 		void resetConnection(int fd);
 
+		void handleCgiRead(int cgi_fd);
+		void handleCgiEnd(int cgi_fd);
+
 
 		// Response
 		Response generateErrorResponse(int code, int config_index);
