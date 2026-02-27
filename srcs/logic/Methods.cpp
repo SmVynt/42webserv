@@ -284,7 +284,7 @@ Response RequestHandler::handleCgi(const Request &req, const Location &loc, cons
 				if (!header_line.empty() && header_line.back() == '\r')
 					header_line.pop_back();
 
-					size_t colon = header_line.find(':');
+				size_t colon = header_line.find(':');
 				if (colon != std::string::npos){
 					std::string key = header_line.substr(0, colon);
 					std::string val = header_line.substr(colon + 1);
