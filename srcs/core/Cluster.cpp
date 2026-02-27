@@ -228,13 +228,40 @@ bool Cluster::handleClientRequest(int fd)
 			const Location* loc = RequestHandler::findLocation(data.request.getPath(), config);
 
 			Logger::info("Request " + data.request.getMethod() + " " +
-			data.request.getPath() + " fully recieved [FD " + std::to_string(fd) + "]");
-			data.client_state = STATE_PROCESSING;
-			// TO DO: Handle error pages;
-			data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
-			data.response.prepare();
-			data.client_state = STATE_WRITING;
-			updatePollEvents(fd, POLLOUT);
+						data.request.getPath() + " fully received [FD " + std::to_string(fd) + "]");
+			if (loc && RequestHandler::isCgiRequest(data.request, *loc))
+			{
+				Logger::info("Launching CGI for FD " + std::to_string(fd));
+				data.cgi_executor = RequestHandler::handleCgi(data.request, *loc, config);
+
+				if (!data.cgi_executor || data.cgi_executor->hasError())
+				{
+					data.response = generateErrorResponse(500, data.config_index);
+					data.response.prepare();
+					data.client_state = STATE_WRITING;
+					updatePollEvents(fd, POLLOUT);
+					if (data.cgi_executor)
+					{
+						delete data.cgi_executor;
+						data.cgi_executor = nullptr;
+					}
+				}
+				else
+				{
+					data.client_state = STATE_PROCESSING;
+					int pipe_out = data.cgi_executor->getOutputFd();
+					addFD(pipe_out, FD_CGI_OUT, fd, config.client_timeout);
+					updatePollEvents(fd, 0);
+				}
+			}
+			else
+			{
+				data.client_state = STATE_PROCESSING;
+				data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
+				data.response.prepare();
+				data.client_state = STATE_WRITING;
+				updatePollEvents(fd, POLLOUT);
+			}
 		}
 		return false;
 	}
