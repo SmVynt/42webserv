@@ -21,6 +21,7 @@
 #include <csignal>
 #include "CGI.hpp"
 
+class CGIexecutor;
 // Default value
 static const size_t			RECV_BUFFER_SIZE		= 4096;
 
