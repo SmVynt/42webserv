@@ -465,9 +465,9 @@ Response Cluster::generateErrorResponse(int code, int config_index) {
 
 void	Cluster::handleCgiRead(int cgi_fd)
 {
-	FDMetadata& data = _fd_table.at(cgi_fd);
+	FDMetadata& cgi_data = _fd_table.at(cgi_fd);
 
-	if (_fd_table.find(data.client_fd) == _fd_table.end())
+	if (_fd_table.find(cgi_data.client_fd) == _fd_table.end())
 	{
 		removeFD(cgi_fd);
 		return;
@@ -478,9 +478,9 @@ void	Cluster::handleCgiRead(int cgi_fd)
 
 	if (bytes > 0)
 	{
-		data.cgi_raw_output.append(buffer, bytes);
+		cgi_data.cgi_raw_output.append(buffer, bytes);
 		updateActivity(cgi_fd);
-		updateActivity(data.client_fd);
+		updateActivity(cgi_data.client_fd);
 	}
 	else if (bytes == 0)
 	{
@@ -491,6 +491,31 @@ void	Cluster::handleCgiRead(int cgi_fd)
 		Logger::error("CGI read error on pipe " + std::to_string(cgi_fd));
 		handleCgiEnd(cgi_fd);
 	}
+}
+
+void Cluster::handleCgiEnd(int cgi_fd)
+{
+	FDMetadata& cgi_data = _fd_table.at(cgi_fd);
+	int client_fd = cgi_data.client_fd;
+
+	if (_fd_table.find(client_fd) != _fd_table.end())
+	{
+		FDMetadata& client_data = _fd_table.at(client_fd);
+
+		client_data.response = RequestHandler::parseCgiOutput(client_data.cgi_raw_output);
+		client_data.response.prepare();
+
+		client_data.client_state = STATE_WRITING;
+		updatePollEvents(client_fd, POLLOUT);
+
+		if (client_data.cgi_executor)
+		{
+			delete client_data.cgi_executor;
+			client_data.cgi_executor = nullptr;
+		}
+	}
+	removeFD(cgi_fd);
+	Logger::info("CGI processing complete for client FD " + std::to_string(client_fd));
 }
 
 void	Cluster::requestShutdown() {
