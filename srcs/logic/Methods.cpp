@@ -158,7 +158,7 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 	if (req.getMethod() == "GET")
 		res = handleGet(req, *loc);
 	else if (req.getMethod() == "POST")
-		res = handlePost(req, *loc, config);
+		res = handlePost(req, *loc);
 	else if (req.getMethod() == "DELETE")
 		res = handleDelete(req, *loc);
 	else
@@ -232,9 +232,7 @@ Response RequestHandler::handleMultipartUpload(const Request &req, const Locatio
 	return res;
 }
 
-Response RequestHandler::handleCgi(const Request &req, const Location &loc, const ServerConfig &config){
-	Response res;
-
+CGIexecutor *RequestHandler::handleCgi(const Request &req, const Location &loc, const ServerConfig &config) {
 	std::string full_path = req.getPath();
 	size_t query_pos = full_path.find('?');
 	std::string script_uri = (query_pos == std::string::npos) ? full_path : full_path.substr(0, query_pos);
@@ -242,83 +240,71 @@ Response RequestHandler::handleCgi(const Request &req, const Location &loc, cons
 
 	std::string script_path = loc.root + script_uri.substr(loc.path.length());
 
-	CGIexecutor *executor = runCGI(script_path, query_string, req.getBody(), config);
-	if (!executor){
-		res.setStatusCode(500);
-		return res;
-	}
+	CGIconfig cgi_config(script_path, query_string, req.getBody(), config);
+	CGIexecutor *executor = new CGIexecutor(cgi_config);
 
 	std::map<std::string, std::string> req_headers = req.getHeaders();
-	for (std::map<std::string, std::string>::const_iterator it = req_headers.begin(); it != req_headers.end(); ++it)
+	for (std::map<std::string, std::string>::const_iterator it = req_headers.begin(); it != req_headers.end(); ++it){
 		executor->setHttpHeader(it->first, it->second);
-
-	while (executor->isComplete() == 0){
-		if (executor->checkTimeout()){
-			res.setStatusCode(504);
-			delete executor;
-			return res;
-		}
-		if (executor->readOutput() < 0)
-			break;
 	}
 
-	if (executor->hasError())
-		res.setStatusCode(502);
-	else{
-		std::string raw_output = executor->getOutput();
-		size_t sep = raw_output.find("\r\n\r\n");
-		size_t sep_len = 4;
+	if (executor->start() != 0) {
+		delete executor;
+		return NULL;
+	}
 
-		if (sep == std::string::npos){
-			sep = raw_output.find("\n\n");
-			sep_len = 2;
-		}
+	return executor;
+}
 
-		if (sep != std::string::npos) {
-			std::string headers_part = raw_output.substr(0, sep);
-			std::string body_part = raw_output.substr(sep + sep_len);
+Response RequestHandler::parseCgiOutput(const std::string& raw_output){
+	Response res;
+	size_t sep = raw_output.find("\r\n\r\n");
+	size_t sep_len = 4;
 
-			std::istringstream stream(headers_part);
-			std::string header_line;
-			while (std::getline(stream, header_line)){
-				if (!header_line.empty() && header_line.back() == '\r')
-					header_line.pop_back();
+	if (sep == std::string::npos){
+		sep = raw_output.find("\n\n");
+		sep_len = 2;
+	}
 
-				size_t colon = header_line.find(':');
-				if (colon != std::string::npos){
-					std::string key = header_line.substr(0, colon);
-					std::string val = header_line.substr(colon + 1);
-					val.erase(0, val.find_first_not_of(" "));
+	if (sep != std::string::npos){
+		std::string headers_part = raw_output.substr(0, sep);
+		std::string body_part = raw_output.substr(sep + sep_len);
 
-					if (key == "Status")
-						res.setStatusCode(std::atoi(val.c_str()));
-					else
-						res.addHeader(key, val);
-				}
+		std::istringstream stream(headers_part);
+		std::string header_line;
+		while (std::getline(stream, header_line)){
+			if (!header_line.empty() && header_line.back() == '\r')
+				header_line.pop_back();
+
+			size_t colon = header_line.find(':');
+			if (colon != std::string::npos){
+				std::string key = header_line.substr(0, colon);
+				std::string val = header_line.substr(colon + 1);
+				val.erase(0, val.find_first_not_of(" "));
+
+				if (key == "Status")
+					res.setStatusCode(std::atoi(val.c_str()));
+				else
+					res.addHeader(key, val);
 			}
-			res.setStatusCode(res.getStatusCode() ? res.getStatusCode() : 200);
-			res.setBody(body_part);
 		}
-		else{
-			res.setStatusCode(502);
-			res.setBody("CGI Error: Invalid output format (missing header separator)");
-		}
+		res.setStatusCode(res.getStatusCode() ? res.getStatusCode() : 200);
+		res.setBody(body_part);
 	}
-
-	delete executor;
+	else{
+		res.setStatusCode(502);
+		res.setBody("CGI Error: Missing header separator");
+	}
 	return res;
 }
 
-Response RequestHandler::handlePost(const Request &req, const Location &loc, const ServerConfig &config){
+Response RequestHandler::handlePost(const Request &req, const Location &loc){
 	Response res;
 
 	if (!loc.upload_dir.has_value()){
 		res.setStatusCode(403);
 		return res;
 	}
-
-	if (isCgiRequest(req, loc))
-		return handleCgi(req, loc, config);
 
 	std::string content_type = "";
 	std::map<std::string, std::string> headers = req.getHeaders();
