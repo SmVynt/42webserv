@@ -363,6 +363,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.last_activity = time(NULL);
 	metadata.timeout_value = timeout;
 	metadata.is_ready_to_close = false;
+	metadata.cgi_executor = nullptr;
 	metadata.port = -1;
 	metadata.config_index = -1;
 
