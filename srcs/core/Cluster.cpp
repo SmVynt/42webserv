@@ -162,9 +162,9 @@ void Cluster::acceptNewConnection(int listen_fd)
 	}
 	int port = _listen_sockets.at(listen_fd);
 
-	int timeout = DEFAULT_CLIENT_TIMEOUT;
+	int timeout = 0;
 	int config_index = -1;
-	unsigned long max_body = DEFAULT_MAX_BODY_SIZE;
+	unsigned long max_body = 0;
 
 	for (int idx = 0; idx < static_cast<int>(_config_data.size()); ++idx){
 		if (_config_data[idx].port == port){
