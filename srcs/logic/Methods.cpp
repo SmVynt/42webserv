@@ -33,6 +33,19 @@ std::string RequestHandler::getMimeType(const std::string &path){
 	return "application/octet-stream";
 }
 
+bool RequestHandler::isCgiRequest(const Request &req, const Location &loc){
+	if (!loc.cgi_ext.has_value())
+		return false;
+	std::string path = req.getPath();
+	size_t query_pos = path.find('?');
+	std::string clean_path = (query_pos == std::string::npos) ? path : path.substr(0, query_pos);
+
+	size_t dot_pos = clean_path.find_last_of(".");
+	if (dot_pos == std::string::npos)
+		return false;
+	return clean_path.substr(dot_pos) == loc.cgi_ext.value();
+}
+
 const Location *RequestHandler::findLocation(const std::string &uri, const ServerConfig &config){
 	const Location* best_match = nullptr;
 	size_t max_len = 0;
@@ -113,7 +126,7 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 	if (!loc){
 		res.setStatusCode(404);
 		return res;
-	}	
+	}
 
 	if (!loc->redirection.second.empty()){
 		int code = loc->redirection.first;
@@ -145,7 +158,7 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 	if (req.getMethod() == "GET")
 		res = handleGet(req, *loc);
 	else if (req.getMethod() == "POST")
-		res = handlePost(req, *loc);
+		res = handlePost(req, *loc, config);
 	else if (req.getMethod() == "DELETE")
 		res = handleDelete(req, *loc);
 	else
@@ -219,7 +232,84 @@ Response RequestHandler::handleMultipartUpload(const Request &req, const Locatio
 	return res;
 }
 
-Response RequestHandler::handlePost(const Request &req, const Location &loc){
+Response RequestHandler::handleCgi(const Request &req, const Location &loc, const ServerConfig &config){
+	Response res;
+
+	std::string full_path = req.getPath();
+	size_t query_pos = full_path.find('?');
+	std::string script_uri = (query_pos == std::string::npos) ? full_path : full_path.substr(0, query_pos);
+	std::string query_string = (query_pos == std::string::npos) ? "" : full_path.substr(query_pos + 1);
+
+	std::string script_path = loc.root + script_uri.substr(loc.path.length());
+
+	CGIexecutor *executor = runCGI(script_path, query_string, req.getBody(), config);
+	if (!executor){
+		res.setStatusCode(500);
+		return res;
+	}
+
+	std::map<std::string, std::string> req_headers = req.getHeaders();
+	for (std::map<std::string, std::string>::const_iterator it = req_headers.begin(); it != req_headers.end(); ++it)
+		executor->setHttpHeader(it->first, it->second);
+
+	while (executor->isComplete() == 0){
+		if (executor->checkTimeout()){
+			res.setStatusCode(504);
+			delete executor;
+			return res;
+		}
+		if (executor->readOutput() < 0)
+			break;
+	}
+
+	if (executor->hasError())
+		res.setStatusCode(502);
+	else{
+		std::string raw_output = executor->getOutput();
+		size_t sep = raw_output.find("\r\n\r\n");
+		size_t sep_len = 4;
+
+		if (sep == std::string::npos){
+			sep = raw_output.find("\n\n");
+			sep_len = 2;
+		}
+
+		if (sep != std::string::npos) {
+			std::string headers_part = raw_output.substr(0, sep);
+			std::string body_part = raw_output.substr(sep + sep_len);
+
+			std::istringstream stream(headers_part);
+			std::string header_line;
+			while (std::getline(stream, header_line)){
+				if (!header_line.empty() && header_line.back() == '\r')
+					header_line.pop_back();
+
+				size_t colon = header_line.find(':');
+				if (colon != std::string::npos){
+					std::string key = header_line.substr(0, colon);
+					std::string val = header_line.substr(colon + 1);
+					val.erase(0, val.find_first_not_of(" "));
+
+					if (key == "Status")
+						res.setStatusCode(std::atoi(val.c_str()));
+					else
+						res.addHeader(key, val);
+				}
+			}
+			res.setStatusCode(res.getStatusCode() ? res.getStatusCode() : 200);
+			res.setBody(body_part);
+		}
+		else{
+			res.setStatusCode(502);
+			res.setBody("CGI Error: Invalid output format (missing header separator)");
+		}
+	}
+
+	delete executor;
+	return res;
+}
+
+Response RequestHandler::handlePost(const Request &req, const Location &loc, const ServerConfig &config){
 	Response res;
 
 	if (!loc.upload_dir.has_value()){
@@ -227,9 +317,8 @@ Response RequestHandler::handlePost(const Request &req, const Location &loc){
 		return res;
 	}
 
-	if (loc.cgi_path.has_value() && !loc.cgi_ext.value_or("").empty()){
-		// return handleCgi(req, loc); or smth like that
-	}
+	if (isCgiRequest(req, loc))
+		return handleCgi(req, loc, config);
 
 	std::string content_type = "";
 	std::map<std::string, std::string> headers = req.getHeaders();
