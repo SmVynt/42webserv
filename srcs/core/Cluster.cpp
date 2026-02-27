@@ -223,6 +223,10 @@ bool Cluster::handleClientRequest(int fd)
 			int resolved = resolveServerConfig(data.port, host);
 			if (resolved >= 0)
 				data.config_index = resolved;
+
+			const ServerConfig& config = _config_data[data.config_index];
+			const Location* loc = RequestHandler::findLocation(data.request.getPath(), config);
+
 			Logger::info("Request " + data.request.getMethod() + " " +
 			data.request.getPath() + " fully recieved [FD " + std::to_string(fd) + "]");
 			data.client_state = STATE_PROCESSING;

@@ -51,6 +51,8 @@ struct FDMetadata{
 	int				config_index;	// index in _config_data vector
 	int				client_fd;		// Associated client socket (links CGI pipes to specific users)
 
+	std::string		cgi_raw_output;
+
 	Request			request;		// Request obj
 	Response		response;		// Response obj
 	CGIexecutor*	cgi_executor;	// CGI obj arr
