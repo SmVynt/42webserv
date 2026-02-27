@@ -116,12 +116,20 @@ void	Cluster::run()
 				if (it == _fd_table.end())
 					continue;
 
-				if (it->second.type == FD_LISTENER){
+				if (it->second.type == FD_LISTENER)
+				{
 					acceptNewConnection(fd);
-				} else if (it->second.type == FD_CLIENT){
+				}
+				else if (it->second.type == FD_CLIENT)
+				{
 					if (handleClientRequest(fd))
 						continue;
 				}
+				else if (it->second.type == FD_CGI_OUT)
+				{
+					handleCgiRead(fd);
+				}
+
 			}
 
 			// WRITABLE
@@ -130,7 +138,8 @@ void	Cluster::run()
 				if (it == _fd_table.end())
 					continue;
 
-				if (it->second.type == FD_CLIENT){
+				if (it->second.type == FD_CLIENT)
+				{
 					if (handleClientResponse(fd))
 						continue;
 				}
@@ -139,7 +148,14 @@ void	Cluster::run()
 
 			if (revents & POLLHUP){
 				if (_fd_table.find(fd) != _fd_table.end())
+				{
 					closeConnection(fd);
+				}
+				else
+				{
+					closeConnection(fd);
+				}
+				continue;
 			}
 		}
 	}
@@ -298,6 +314,16 @@ int Cluster::resolveServerConfig(int port, const std::string& host){
 
 void Cluster::closeConnection(int fd)
 {
+	auto it = _fd_table.find(fd);
+	if (it != _fd_table.end())
+	{
+		if (it->second.type == FD_CLIENT && it->second.cgi_executor != nullptr)
+		{
+			Logger::info("Cleaning up CGI executor for client FD " + std::to_string(fd));
+			delete it->second.cgi_executor;
+			it->second.cgi_executor = nullptr;
+		}
+	}
 	removeFD(fd);
 	Logger::info("[Cluster] Connection closed on [FD " + std::to_string(fd) + "]");
 }
@@ -409,9 +435,10 @@ void Cluster::removeFD(int fd)
 			break;
 		}
 	}
+	if (fd >= 0)
+		close(fd);
 	_fd_table.erase(fd);
 
-	close(fd);
 }
 
 void Cluster::updateActivity(int fd)
