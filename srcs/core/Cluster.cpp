@@ -529,7 +529,7 @@ void Cluster::handleCgiEnd(int cgi_fd)
 	{
 		FDMetadata& client_data = _fd_table.at(client_fd);
 
-		client_data.response = RequestHandler::parseCgiOutput(client_data.cgi_raw_output);
+		client_data.response = RequestHandler::parseCgiOutput(cgi_data.cgi_raw_output);
 		client_data.response.prepare();
 
 		client_data.client_state = STATE_WRITING;
