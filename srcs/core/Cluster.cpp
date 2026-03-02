@@ -116,12 +116,20 @@ void	Cluster::run()
 				if (it == _fd_table.end())
 					continue;
 
-				if (it->second.type == FD_LISTENER){
+				if (it->second.type == FD_LISTENER)
+				{
 					acceptNewConnection(fd);
-				} else if (it->second.type == FD_CLIENT){
+				}
+				else if (it->second.type == FD_CLIENT)
+				{
 					if (handleClientRequest(fd))
 						continue;
 				}
+				else if (it->second.type == FD_CGI_OUT)
+				{
+					handleCgiRead(fd);
+				}
+
 			}
 
 			// WRITABLE
@@ -130,7 +138,8 @@ void	Cluster::run()
 				if (it == _fd_table.end())
 					continue;
 
-				if (it->second.type == FD_CLIENT){
+				if (it->second.type == FD_CLIENT)
+				{
 					if (handleClientResponse(fd))
 						continue;
 				}
@@ -138,8 +147,14 @@ void	Cluster::run()
 
 
 			if (revents & POLLHUP){
-				if (_fd_table.find(fd) != _fd_table.end())
-					closeConnection(fd);
+				auto it_hup = _fd_table.find(fd);
+				if (it_hup != _fd_table.end()){
+					if (it_hup->second.type == FD_CGI_OUT)
+						handleCgiEnd(fd);
+					else
+						closeConnection(fd);
+				}
+				continue;
 			}
 		}
 	}
@@ -162,9 +177,9 @@ void Cluster::acceptNewConnection(int listen_fd)
 	}
 	int port = _listen_sockets.at(listen_fd);
 
-	int timeout = DEFAULT_CLIENT_TIMEOUT;
+	int timeout = 0;
 	int config_index = -1;
-	unsigned long max_body = DEFAULT_MAX_BODY_SIZE;
+	unsigned long max_body = 0;
 
 	for (int idx = 0; idx < static_cast<int>(_config_data.size()); ++idx){
 		if (_config_data[idx].port == port){
@@ -223,14 +238,45 @@ bool Cluster::handleClientRequest(int fd)
 			int resolved = resolveServerConfig(data.port, host);
 			if (resolved >= 0)
 				data.config_index = resolved;
+
+			const ServerConfig& config = _config_data[data.config_index];
+			const Location* loc = RequestHandler::findLocation(data.request.getPath(), config);
+
 			Logger::info("Request " + data.request.getMethod() + " " +
-			data.request.getPath() + " fully recieved [FD " + std::to_string(fd) + "]");
-			data.client_state = STATE_PROCESSING;
-			// TO DO: Handle error pages;
-			data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
-			data.response.prepare();
-			data.client_state = STATE_WRITING;
-			updatePollEvents(fd, POLLOUT);
+						data.request.getPath() + " fully received [FD " + std::to_string(fd) + "]");
+			if (loc && RequestHandler::isCgiRequest(data.request, *loc))
+			{
+				Logger::info("Launching CGI for FD " + std::to_string(fd));
+				data.cgi_executor = RequestHandler::handleCgi(data.request, *loc, config);
+
+				if (!data.cgi_executor || data.cgi_executor->hasError())
+				{
+					data.response = generateErrorResponse(500, data.config_index);
+					data.response.prepare();
+					data.client_state = STATE_WRITING;
+					updatePollEvents(fd, POLLOUT);
+					if (data.cgi_executor)
+					{
+						delete data.cgi_executor;
+						data.cgi_executor = nullptr;
+					}
+				}
+				else
+				{
+					data.client_state = STATE_PROCESSING;
+					int pipe_out = data.cgi_executor->getOutputFd();
+					addFD(pipe_out, FD_CGI_OUT, fd, config.client_timeout);
+					updatePollEvents(fd, 0);
+				}
+			}
+			else
+			{
+				data.client_state = STATE_PROCESSING;
+				data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
+				data.response.prepare();
+				data.client_state = STATE_WRITING;
+				updatePollEvents(fd, POLLOUT);
+			}
 		}
 		return false;
 	}
@@ -267,7 +313,53 @@ int Cluster::resolveServerConfig(int port, const std::string& host){
 
 void Cluster::closeConnection(int fd)
 {
-	removeFD(fd);
+	auto it = _fd_table.find(fd);
+	if (it == _fd_table.end())
+		return;
+
+	if (it->second.type == FD_CGI_OUT)
+	{
+		// CGI timed out: clean up executor and send 504 to client
+		int client_fd = it->second.client_fd;
+		removeFD(fd);
+		if (_fd_table.count(client_fd))
+		{
+			FDMetadata& cl = _fd_table.at(client_fd);
+			if (cl.cgi_executor)
+			{
+				delete cl.cgi_executor;
+				cl.cgi_executor = nullptr;
+			}
+			cl.response = generateErrorResponse(504, cl.config_index);
+			cl.response.prepare();
+			cl.client_state = STATE_WRITING;
+			updatePollEvents(client_fd, POLLOUT);
+		}
+	}
+	else
+	{
+		if (it->second.type == FD_CLIENT && it->second.cgi_executor != nullptr)
+		{
+			// Client disconnected while CGI running: kill child process
+			Logger::info("Cleaning up CGI executor for client FD " + std::to_string(fd));
+			it->second.cgi_executor->killChildProcess();
+			delete it->second.cgi_executor;
+			it->second.cgi_executor = nullptr;
+			// Find and remove the orphaned pipe fd (collect first, then remove)
+			int orphan_pipe = -1;
+			for (const auto& [pfd, meta] : _fd_table)
+			{
+				if (meta.type == FD_CGI_OUT && meta.client_fd == fd)
+				{
+					orphan_pipe = pfd;
+					break;
+				}
+			}
+			if (orphan_pipe >= 0)
+				removeFD(orphan_pipe);
+		}
+		removeFD(fd);
+	}
 	Logger::info("[Cluster] Connection closed on [FD " + std::to_string(fd) + "]");
 }
 
@@ -363,6 +455,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.last_activity = time(NULL);
 	metadata.timeout_value = timeout;
 	metadata.is_ready_to_close = false;
+	metadata.cgi_executor = nullptr;
 	metadata.port = -1;
 	metadata.config_index = -1;
 
@@ -377,9 +470,10 @@ void Cluster::removeFD(int fd)
 			break;
 		}
 	}
+	if (fd >= 0)
+		close(fd);
 	_fd_table.erase(fd);
 
-	close(fd);
 }
 
 void Cluster::updateActivity(int fd)
@@ -429,6 +523,61 @@ Response Cluster::generateErrorResponse(int code, int config_index) {
 
 	res.makeDefaultError(code);
 	return res;
+}
+
+void	Cluster::handleCgiRead(int cgi_fd)
+{
+	FDMetadata& cgi_data = _fd_table.at(cgi_fd);
+
+	if (_fd_table.find(cgi_data.client_fd) == _fd_table.end())
+	{
+		removeFD(cgi_fd);
+		return;
+	}
+
+	char buffer[RECV_BUFFER_SIZE];
+	ssize_t bytes = read(cgi_fd, buffer, sizeof(buffer));
+
+	if (bytes > 0)
+	{
+		cgi_data.cgi_raw_output.append(buffer, bytes);
+		updateActivity(cgi_fd);
+		updateActivity(cgi_data.client_fd);
+	}
+	else if (bytes == 0)
+	{
+		handleCgiEnd(cgi_fd);
+	}
+	else
+	{
+		Logger::error("CGI read error on pipe " + std::to_string(cgi_fd));
+		handleCgiEnd(cgi_fd);
+	}
+}
+
+void Cluster::handleCgiEnd(int cgi_fd)
+{
+	FDMetadata& cgi_data = _fd_table.at(cgi_fd);
+	int client_fd = cgi_data.client_fd;
+
+	if (_fd_table.find(client_fd) != _fd_table.end())
+	{
+		FDMetadata& client_data = _fd_table.at(client_fd);
+
+		client_data.response = RequestHandler::parseCgiOutput(cgi_data.cgi_raw_output);
+		client_data.response.prepare();
+
+		client_data.client_state = STATE_WRITING;
+		updatePollEvents(client_fd, POLLOUT);
+
+		if (client_data.cgi_executor)
+		{
+			delete client_data.cgi_executor;
+			client_data.cgi_executor = nullptr;
+		}
+	}
+	removeFD(cgi_fd);
+	Logger::info("CGI processing complete for client FD " + std::to_string(client_fd));
 }
 
 void	Cluster::requestShutdown() {

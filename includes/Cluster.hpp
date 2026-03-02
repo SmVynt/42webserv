@@ -19,7 +19,9 @@
 #include "Logger.hpp"
 #include "Methods.hpp"
 #include <csignal>
+#include "CGI.hpp"
 
+class CGIexecutor;
 // Default value
 static const size_t			RECV_BUFFER_SIZE		= 4096;
 
@@ -39,21 +41,24 @@ enum ClientState{
 };
 
 struct FDMetadata{
-	int			fd;				// The file descriptor number
-	FDType		type;			// Purpose of this descriptor (from enum above)
-	ClientState	client_state;	// State of the clients from enum above
+	int				fd;				// The file descriptor number
+	FDType			type;			// Purpose of this descriptor (from enum above)
+	ClientState		client_state;	// State of the clients from enum above
 
-	time_t		last_activity;	// Timestamp of the last I/O operation for timeout logic
-	int			timeout_value;	// Timeout limit
+	time_t			last_activity;	// Timestamp of the last I/O operation for timeout logic
+	int				timeout_value;	// Timeout limit
 
-	int			port;			// Port that client int using
-	int			config_index;	// index in _config_data vector
-	int			client_fd;		// Associated client socket (links CGI pipes to specific users)
+	int				port;			// Port that client int using
+	int				config_index;	// index in _config_data vector
+	int				client_fd;		// Associated client socket (links CGI pipes to specific users)
 
-	Request		request;		// Request obj
-	Response	response;		// Response obj
+	std::string		cgi_raw_output;
 
-	bool		is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
+	Request			request;		// Request obj
+	Response		response;		// Response obj
+	CGIexecutor*	cgi_executor;	// CGI obj arr
+
+	bool			is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
 };
 class Cluster {
 	public:
@@ -83,6 +88,9 @@ class Cluster {
 		void updateActivity(int fd);
 		void handleTimeout();
 		void resetConnection(int fd);
+
+		void handleCgiRead(int cgi_fd);
+		void handleCgiEnd(int cgi_fd);
 
 
 		// Response
