@@ -147,13 +147,12 @@ void	Cluster::run()
 
 
 			if (revents & POLLHUP){
-				if (_fd_table.find(fd) != _fd_table.end())
-				{
-					closeConnection(fd);
-				}
-				else
-				{
-					closeConnection(fd);
+				auto it_hup = _fd_table.find(fd);
+				if (it_hup != _fd_table.end()){
+					if (it_hup->second.type == FD_CGI_OUT)
+						handleCgiEnd(fd);
+					else
+						closeConnection(fd);
 				}
 				continue;
 			}
@@ -315,16 +314,52 @@ int Cluster::resolveServerConfig(int port, const std::string& host){
 void Cluster::closeConnection(int fd)
 {
 	auto it = _fd_table.find(fd);
-	if (it != _fd_table.end())
+	if (it == _fd_table.end())
+		return;
+
+	if (it->second.type == FD_CGI_OUT)
+	{
+		// CGI timed out: clean up executor and send 504 to client
+		int client_fd = it->second.client_fd;
+		removeFD(fd);
+		if (_fd_table.count(client_fd))
+		{
+			FDMetadata& cl = _fd_table.at(client_fd);
+			if (cl.cgi_executor)
+			{
+				delete cl.cgi_executor;
+				cl.cgi_executor = nullptr;
+			}
+			cl.response = generateErrorResponse(504, cl.config_index);
+			cl.response.prepare();
+			cl.client_state = STATE_WRITING;
+			updatePollEvents(client_fd, POLLOUT);
+		}
+	}
+	else
 	{
 		if (it->second.type == FD_CLIENT && it->second.cgi_executor != nullptr)
 		{
+			// Client disconnected while CGI running: kill child process
 			Logger::info("Cleaning up CGI executor for client FD " + std::to_string(fd));
+			it->second.cgi_executor->killChildProcess();
 			delete it->second.cgi_executor;
 			it->second.cgi_executor = nullptr;
+			// Find and remove the orphaned pipe fd (collect first, then remove)
+			int orphan_pipe = -1;
+			for (const auto& [pfd, meta] : _fd_table)
+			{
+				if (meta.type == FD_CGI_OUT && meta.client_fd == fd)
+				{
+					orphan_pipe = pfd;
+					break;
+				}
+			}
+			if (orphan_pipe >= 0)
+				removeFD(orphan_pipe);
 		}
+		removeFD(fd);
 	}
-	removeFD(fd);
 	Logger::info("[Cluster] Connection closed on [FD " + std::to_string(fd) + "]");
 }
 
