@@ -24,6 +24,7 @@ private:
 	std::string	_http_version;
 	std::string	_body;
 	std::map<std::string, std::string>	_headers;
+	std::string	_client_ip;
 
 
 public:
@@ -44,6 +45,8 @@ public:
 	std::string	getPath() const;
 	std::string	getHttpVersion() const;
 	std::string	getBody() const;
+	std::string	getClientIP() const;
+	void		setClientIP(const std::string &ip);
 	std::map<std::string, std::string>	getHeaders() const;
 	std::string	getHeaders(const std::string& key) const;
 	State	getState() const;

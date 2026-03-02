@@ -35,10 +35,6 @@ CGIexecutor::~CGIexecutor() {
 	killChildProcess();
 }
 
-// void	CGIexecutor::setTimeout(int seconds) {
-// 	_timeout_seconds = seconds;
-// }
-
 void	CGIexecutor::setQuery(const std::string &query)
 {
 	_query_string = query;
@@ -65,8 +61,13 @@ void	CGIexecutor::setHttpHeader(const std::string &name, const std::string &valu
 }
 
 void	CGIexecutor::setEnvKey(const std::string &key, const std::string &value) {
-	if (_env_vars.find(key) == _env_vars.end())
+	_env_vars[key] = value;
+}
+
+void	CGIexecutor::setEnvKeySafe(const std::string &key, const std::string &value) {
+	if (_env_vars.find(key) == _env_vars.end()) {
 		_env_vars[key] = value;
+	}
 }
 
 void	CGIexecutor::setupEnvironment() {
@@ -78,16 +79,23 @@ void	CGIexecutor::setupEnvironment() {
 	_env_vars["QUERY_STRING"] = _query_string;
 
 	// Set defaults only if not already set by setter methods
-	setEnvKey("SERVER_NAME", "localhost");
-	setEnvKey("SERVER_PORT", "8080");
-	setEnvKey("REQUEST_METHOD", "GET");
-	setEnvKey("REMOTE_ADDR", "127.0.0.1");
-	setEnvKey("REMOTE_HOST", "localhost");
+	// setEnvKey("SERVER_NAME", "localhost");
+	setEnvKey("SERVER_NAME", _config.server_names.empty() ? "localhost" : _config.server_names[0]);
+	// setEnvKey("SERVER_PORT", "8080");
+	setEnvKey("SERVER_PORT", _config.port > 0? std::to_string(_config.port) : "8080");
+	// setEnvKey("REQUEST_METHOD", "GET");
+	// setEnvKey("REMOTE_ADDR", "127.0.0.1");
+	// setEnvKey("REMOTE_HOST", "localhost");
 
 	_env_vars["PATH_INFO"] = "";
 	_env_vars["PATH_TRANSLATED"] = "";
-	_env_vars["SCRIPT_NAME"] = "/cgi-bin/test";
-	_env_vars["SCRIPT_FILENAME"] = _script_path;
+	_env_vars["SCRIPT_NAME"] = _script_path[0] == '/' ? _script_path : "/" + _script_path;
+	char abs_script_path[PATH_MAX];
+	if (realpath(_script_path.c_str(), abs_script_path)) {
+		_env_vars["SCRIPT_FILENAME"] = std::string(abs_script_path);
+	} else {
+		_env_vars["SCRIPT_FILENAME"] = _script_path;
+	}
 
 	_env_vars["AUTH_TYPE"] = "";
 	_env_vars["REMOTE_IDENT"] = "";

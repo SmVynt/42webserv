@@ -13,11 +13,11 @@
 # include <poll.h> // For poll, used for timeout handling
 # include <fcntl.h> // For fcntl (non-blocking mode)
 # include <ctime> // For timeout handling
-// # include <exception>
+# include <limits.h> // For PATH_MAX
+
 # include "cgiUtils.hpp"
 # include "cgiError.hpp"
 # include "Logger.hpp"
-# include "Cluster.hpp"
 # include "Config.hpp"
 
 class CGIconfig {
@@ -63,16 +63,16 @@ class CGIexecutor {
 
 		void	runChild(int pipe_in[2], int pipe_out[2]);
 		void	setupEnvironment();
-		void	setEnvKey(const std::string &key, const std::string &value);
 
 	public:
 		CGIexecutor(const CGIconfig &config);
 		~CGIexecutor();
 
-		// void	setTimeout(int seconds);
 		void	setQuery(const std::string &query);
 		void	setPostData(const std::string &data);
 		void	setHttpHeader(const std::string &name, const std::string &value);
+		void	setEnvKey(const std::string &key, const std::string &value);
+		void	setEnvKeySafe(const std::string &key, const std::string &value);
 
 		int			start();
 		void		setComplete(bool complete);

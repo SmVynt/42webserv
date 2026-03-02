@@ -22,7 +22,7 @@ std::vector<ServerConfig> Config::parse(){
 		else
 			throw std::runtime_error("Unknown global token: " + _tokens[_pos]);
 	}
-	validate(servers);
+	// validate(servers);
 	return servers;
 }
 
