@@ -15,12 +15,9 @@ class RequestHandler{
 		static Response			handlePost(const Request &req, const Location &loc);
 		static Response			handleDelete(const Request &req, const Location &loc);
 
-		static CGIexecutor		*handleCgi(const Request &req, const Location &loc, const ServerConfig &config);
 
-		static Response			parseCgiOutput(const std::string& raw_output);
 
 		static std::string		getMimeType(const std::string &path);
-		static bool				isCgiRequest(const Request &req, const Location &loc);
 		static bool				isDirectory(const std::string &path);
 		static bool				fileExists(const std::string &path);
 
@@ -31,6 +28,9 @@ class RequestHandler{
 		public:
 		static const Location	*findLocation(const std::string &uri, const ServerConfig &config);
 		static Response			handleRequest(Request &req, const ServerConfig &config);
+		static bool				isCgiRequest(const Request &req, const Location &loc);
+		static CGIexecutor		*handleCgi(const Request &req, const Location &loc, const ServerConfig &config);
+		static Response			parseCgiOutput(const std::string& raw_output);
 
 };
 
