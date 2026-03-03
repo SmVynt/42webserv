@@ -273,6 +273,9 @@ bool Cluster::handleClientRequest(int fd)
 			{
 				data.client_state = STATE_PROCESSING;
 				data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
+				if (data.response.getStatusCode() != 200 && data.response.getStatusCode() != 201){
+					data.response = generateErrorResponse(data.response.getStatusCode(), data.config_index);
+				}
 				data.response.prepare();
 				data.client_state = STATE_WRITING;
 				updatePollEvents(fd, POLLOUT);
@@ -511,6 +514,8 @@ Response Cluster::generateErrorResponse(int code, int config_index) {
 		const ServerConfig& config = _config_data[config_index];
 		if (config.error_pages.count(code)) {
 			std::string path = config.error_pages.at(code);
+			if (!path.empty() && path[0] == '/')
+				path.erase(0, 1);
 			std::string custom_body = loadFile(path);
 			if (!custom_body.empty()) {
 				res.setStatusCode(code);
