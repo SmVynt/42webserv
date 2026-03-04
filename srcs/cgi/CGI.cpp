@@ -205,14 +205,19 @@ int	CGIexecutor::start() {
 		return 1;
 	}
 
-	// Write POST data if exists
-	if (!_post_data.empty()) {
-		if (loopingWrite(_pipe_in_fd, _post_data.c_str(), _post_data.length()) == -1) {
-			//cleanup
-			killChildProcess();
-			return 1;
-		}
+	// Set input pipe to non-blocking mode (write end)
+	int in_flags = fcntl(_pipe_in_fd, F_GETFL, 0);
+	if (in_flags == -1) {
+		Logger::error("fcntl() failed to get flags for pipe_in");
+		_error_type = CGIError::PIPE_FAILED;
+		return 1;
 	}
+	if (fcntl(_pipe_in_fd, F_SETFL, in_flags | O_NONBLOCK) == -1) {
+		Logger::error("fcntl() failed to set non-blocking mode for pipe_in");
+		_error_type = CGIError::PIPE_FAILED;
+		return 1;
+	}
+
 	safeClose(_pipe_in_fd);
 
 	return 0;
@@ -287,6 +292,10 @@ void	CGIexecutor::setComplete(bool complete) {
 
 int	CGIexecutor::getOutputFd() const {
 	return _pipe_out_fd;
+}
+
+int	CGIexecutor::getInputFd() const {
+	return _pipe_in_fd;
 }
 
 int	CGIexecutor::getExitStatus() const {

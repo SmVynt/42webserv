@@ -68,6 +68,7 @@ class CGIexecutor {
 		CGIexecutor(const CGIconfig &config);
 		~CGIexecutor();
 
+		// void	setTimeout(int seconds);
 		void	setQuery(const std::string &query);
 		void	setPostData(const std::string &data);
 		void	setHttpHeader(const std::string &name, const std::string &value);
@@ -80,6 +81,7 @@ class CGIexecutor {
 		int			readOutput();
 		bool		checkTimeout();
 		int			getOutputFd() const;
+		int			getInputFd() const;
 		int			getExitStatus() const;
 		std::string	getOutput() const;
 		void		killChildProcess();

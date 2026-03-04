@@ -143,6 +143,10 @@ void	Cluster::run()
 					if (handleClientResponse(fd))
 						continue;
 				}
+				else if (it->second.type == FD_CGI_IN)
+				{
+					handleCgiWrite(fd);
+				}
 			}
 
 
@@ -270,6 +274,13 @@ bool Cluster::handleClientRequest(int fd)
 					data.client_state = STATE_PROCESSING;
 					int pipe_out = data.cgi_executor->getOutputFd();
 					addFD(pipe_out, FD_CGI_OUT, fd, config.client_timeout);
+					// Register stdin pipe for poll-driven non-blocking write (POST body)
+					int pipe_in = data.cgi_executor->getInputFd();
+					if (pipe_in >= 0)
+					{
+						addFD(pipe_in, FD_CGI_IN, fd, config.client_timeout);
+						updatePollEvents(pipe_in, POLLOUT);
+					}
 					updatePollEvents(fd, 0);
 				}
 			}
@@ -349,18 +360,15 @@ void Cluster::closeConnection(int fd)
 			it->second.cgi_executor->killChildProcess();
 			delete it->second.cgi_executor;
 			it->second.cgi_executor = nullptr;
-			// Find and remove the orphaned pipe fd (collect first, then remove)
-			int orphan_pipe = -1;
+			// Find and remove orphaned CGI pipes (collect first, then remove)
+			std::vector<int> orphan_pipes;
 			for (const auto& [pfd, meta] : _fd_table)
 			{
-				if (meta.type == FD_CGI_OUT && meta.client_fd == fd)
-				{
-					orphan_pipe = pfd;
-					break;
-				}
+				if ((meta.type == FD_CGI_OUT || meta.type == FD_CGI_IN) && meta.client_fd == fd)
+					orphan_pipes.push_back(pfd);
 			}
-			if (orphan_pipe >= 0)
-				removeFD(orphan_pipe);
+			for (int p : orphan_pipes)
+				removeFD(p);
 		}
 		removeFD(fd);
 	}
@@ -582,6 +590,40 @@ void Cluster::handleCgiEnd(int cgi_fd)
 	}
 	removeFD(cgi_fd);
 	Logger::info("CGI processing complete for client FD " + std::to_string(client_fd));
+}
+
+void	Cluster::handleCgiWrite(int cgi_in_fd)
+{
+	FDMetadata& pipe_data = _fd_table.at(cgi_in_fd);
+	int client_fd = pipe_data.client_fd;
+
+	if (_fd_table.find(client_fd) == _fd_table.end())
+	{
+		removeFD(cgi_in_fd);
+		return;
+	}
+
+	const std::string& body = _fd_table.at(client_fd).request.getBody();
+	if (body.empty() || pipe_data.cgi_write_offset >= body.size())
+	{
+		removeFD(cgi_in_fd);
+		return;
+	}
+
+	ssize_t written = write(cgi_in_fd,
+						body.c_str() + pipe_data.cgi_write_offset,
+						body.size() - pipe_data.cgi_write_offset);
+	if (written > 0)
+	{
+		pipe_data.cgi_write_offset += static_cast<size_t>(written);
+		if (pipe_data.cgi_write_offset >= body.size())
+			removeFD(cgi_in_fd);  // All written — close write end, child gets EOF on stdin
+	}
+	else if (written == 0 || written < 0)
+	{
+		Logger::error("CGI write error on pipe " + std::to_string(cgi_in_fd));
+		removeFD(cgi_in_fd);
+	}
 }
 
 void	Cluster::requestShutdown() {
