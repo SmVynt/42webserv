@@ -201,6 +201,10 @@ void Cluster::acceptNewConnection(int listen_fd)
 	data.config_index = config_index;
 	data.client_state = STATE_READING;
 	data.request.setMaxBodySize(max_body);
+	// Let's also store the client's IP address for CGI environment variables
+	char ip_str[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, INET_ADDRSTRLEN);
+	data.request.setClientIP(ip_str);
 
 	std::cout << "New client connected: FD " << client_fd << std::endl;
 }

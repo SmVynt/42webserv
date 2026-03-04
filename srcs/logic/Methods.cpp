@@ -247,6 +247,9 @@ CGIexecutor *RequestHandler::handleCgi(const Request &req, const Location &loc, 
 	for (std::map<std::string, std::string>::const_iterator it = req_headers.begin(); it != req_headers.end(); ++it){
 		executor->setHttpHeader(it->first, it->second);
 	}
+	executor->setEnvKey("REQUEST_METHOD", req.getMethod());
+	executor->setEnvKey("REMOTE_ADDR", req.getClientIP());
+	executor->setEnvKeySafe("REMOTE_HOST", req.getClientIP());
 
 	if (executor->start() != 0) {
 		delete executor;

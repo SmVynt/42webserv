@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebServ CGI Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 700px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .test-section {
+            margin-bottom: 25px;
+        }
+
+        .test-section h2 {
+            color: #333;
+            font-size: 1.1em;
+            margin-bottom: 12px;
+        }
+
+        .form-area {
+            background: #f8f9ff;
+            border: 1px solid #e0e0e0;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: block;
+            color: #555;
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 0.9em;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 0.95em;
+            margin-bottom: 12px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-block;
+            margin: 5px 0;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .result-frame {
+            width: 100%;
+            height: 280px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            margin-top: 10px;
+            background: #fafafa;
+        }
+
+        .quick-links {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .quick-links h2 {
+            color: #333;
+            font-size: 1.1em;
+            margin-bottom: 12px;
+        }
+
+        .link-item {
+            background: #f8f9ff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .link-item a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+
+        .link-item a:hover {
+            color: #764ba2;
+        }
+
+        .link-label {
+            color: #999;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ CGI Test</h1>
+        <p class="subtitle">Test CGI scripts with GET and POST requests</p>
+
+        <!-- Python GET -->
+        <div class="test-section">
+            <h2>1. Python CGI — GET</h2>
+            <form class="form-area" action="/cgi-bin/python/test.py" method="GET" target="result-get">
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" value="Alice">
+                <label for="age">Age</label>
+                <input type="text" id="age" name="age" value="25">
+                <button class="btn" type="submit">Send GET →</button>
+            </form>
+            <iframe class="result-frame" name="result-get"></iframe>
+        </div>
+
+        <!-- Python POST -->
+        <div class="test-section">
+            <h2>2. Python CGI — POST</h2>
+            <form class="form-area" action="/cgi-bin/python/test.py" method="POST" target="result-post">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" value="testuser">
+                <label for="password">Password</label>
+                <input type="text" id="password" name="password" value="secret123">
+                <button class="btn" type="submit">Send POST →</button>
+            </form>
+            <iframe class="result-frame" name="result-post"></iframe>
+        </div>
+
+        <!-- PHP GET -->
+        <div class="test-section">
+            <h2>3. PHP CGI — GET</h2>
+            <form class="form-area" action="/cgi-bin/php/test.php" method="GET" target="result-php">
+                <label for="php-name">Name</label>
+                <input type="text" id="php-name" name="name" value="Bob">
+                <label for="php-city">City</label>
+                <input type="text" id="php-city" name="city" value="Paris">
+                <button class="btn" type="submit">Send GET →</button>
+            </form>
+            <iframe class="result-frame" name="result-php"></iframe>
+        </div>
+
+        <!-- Shell GET -->
+        <div class="test-section">
+            <h2>4. Shell CGI — GET</h2>
+            <form class="form-area" action="/cgi-bin/shell/test.sh" method="GET" target="result-sh">
+                <button class="btn" type="submit">Run Shell Script →</button>
+            </form>
+            <iframe class="result-frame" name="result-sh"></iframe>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="quick-links">
+            <h2>Quick Links</h2>
+            <div class="link-item">
+                <a href="/cgi-bin/python/test.py" target="_blank">Python CGI (no params)</a>
+                <span class="link-label">GET</span>
+            </div>
+            <div class="link-item">
+                <a href="/cgi-bin/python/test.py?name=Alice&amp;age=25" target="_blank">Python CGI (query string)</a>
+                <span class="link-label">GET</span>
+            </div>
+            <div class="link-item">
+                <a href="/cgi-bin/php/test.php?name=Bob&amp;city=Paris" target="_blank">PHP CGI (query string)</a>
+                <span class="link-label">GET</span>
+            </div>
+            <div class="link-item">
+                <a href="/cgi-bin/shell/test.sh" target="_blank">Shell CGI</a>
+                <span class="link-label">GET</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

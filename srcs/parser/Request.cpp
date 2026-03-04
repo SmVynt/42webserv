@@ -183,3 +183,7 @@ bool Request::shouldKeepAlive() const{
 	}
 	return _http_version == "HTTP/1.1";
 }
+
+std::string	Request::getClientIP() const { return _client_ip; }
+
+void		Request::setClientIP(const std::string &ip) { _client_ip = ip; }
