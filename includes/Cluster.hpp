@@ -53,6 +53,7 @@ struct FDMetadata{
 	int				client_fd;		// Associated client socket (links CGI pipes to specific users)
 
 	std::string		cgi_raw_output;
+	size_t			cgi_write_offset;	// bytes of POST body already written to FD_CGI_IN
 
 	Request			request;		// Request obj
 	Response		response;		// Response obj
@@ -91,6 +92,7 @@ class Cluster {
 
 		void handleCgiRead(int cgi_fd);
 		void handleCgiEnd(int cgi_fd);
+		void handleCgiWrite(int cgi_in_fd);
 
 
 		// Response
