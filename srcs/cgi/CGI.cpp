@@ -308,7 +308,9 @@ void	CGIexecutor::killChildProcess() {
 			Logger::error("kill() failed: " + std::string(strerror(errno)));
 			_error_type = CGIError::UNKNOWN_ERROR;
 		}
-		waitpid(_child_pid, NULL, WNOHANG);
+		// waitpid(_child_pid, NULL, WNOHANG);
+		// Block until child terminates to avoid zombie processes
+		waitpid(_child_pid, NULL, 0);
 		_child_pid = -1;
 	}
 	safeClose(_pipe_out_fd);
