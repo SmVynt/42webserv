@@ -24,8 +24,14 @@ Request::State	Request::getState() const { return _state; }
 int		Request::getErrorCode() const { return _error_code; }
 
 void	Request::consume(const std::string &new_chunk){
+	// Check if adding this chunk would exceed max body size
+	if (_raw_storage.size() + new_chunk.size() > _max_body_size && _max_body_size > 0) {
+		_state = ERROR;
+		_error_code = 413;
+		return;
+	}
 	_raw_storage += new_chunk;
-	// std::cout << _raw_storage << std::endl;
+
 
 	while (true){
 		// std::cout << _raw_storage << std::endl;
