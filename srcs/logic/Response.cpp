@@ -23,6 +23,7 @@ std::map<int, std::string>	Response::_initStatusMessages(){
 	std::map<int, std::string> m;
 	m[200] = "OK";
 	m[201] = "Created";
+	m[204] = "No Content";
 	m[301] = "Moved Permanently";
 	m[302] = "Found";
 	m[307] = "Temporary Redirect";
@@ -34,6 +35,7 @@ std::map<int, std::string>	Response::_initStatusMessages(){
 	m[413] = "Payload Too Large";
 	m[500] = "Internal Server Error";
 	m[501] = "Not Implemented";
+	m[502] = "Bad Gateway";
 	return m;
 }
 

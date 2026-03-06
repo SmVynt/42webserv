@@ -188,8 +188,8 @@ void	Config::validate(const std::vector<ServerConfig> &servers) {
 		if (srv.port <= 0 || srv.port > 65535)
 			throw std::runtime_error("Invalid port: " + std::to_string(srv.port));
 
-		if (!unique_servers.insert({srv.host, srv.port}).second)
-			throw std::runtime_error("Duplicate server on " + srv.host + ":" + std::to_string(srv.port));
+		// if (!unique_servers.insert({srv.host, srv.port}).second)
+		// 	throw std::runtime_error("Duplicate server on " + srv.host + ":" + std::to_string(srv.port));
 
 		for (const Location &loc : srv.locations) {
 			if (loc.path.empty())
