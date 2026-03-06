@@ -43,7 +43,7 @@ std::string	Response::build(){
 	std::stringstream res;
 
 	res << _version << " " << _status_code << " " << _status_messages.at(_status_code) << "\r\n";
-	if (!_body.empty() && _headers.find("Content-Length") == _headers.end()){
+	if (_headers.find("Content-Length") == _headers.end()){
 		addHeader("Content-Length", std::to_string(_body.size()));
 	}
 
