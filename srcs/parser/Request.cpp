@@ -139,7 +139,7 @@ void	Request::parseRequestLine(const std::string &line){
 		_state = ERROR;
 		return;
 	}
-	if (method != "GET" && method != "POST" && method != "DELETE"){
+	if (method != "GET" && method != "POST" && method != "DELETE" && method != "HEAD"){
 		_state = ERROR;
 		return;
 	}

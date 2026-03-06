@@ -155,7 +155,7 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 		return res;
 	}
 
-	if (req.getMethod() == "GET")
+	if (req.getMethod() == "GET" || req.getMethod() == "HEAD")
 		res = handleGet(req, *loc);
 	else if (req.getMethod() == "POST")
 		res = handlePost(req, *loc);

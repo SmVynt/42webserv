@@ -288,9 +288,12 @@ bool Cluster::handleClientRequest(int fd)
 			{
 				data.client_state = STATE_PROCESSING;
 				data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
+				Logger::warning("Status code" + std::to_string(data.response.getStatusCode()));
 				if (data.response.getStatusCode() != 200 && data.response.getStatusCode() != 201){
 					data.response = generateErrorResponse(data.response.getStatusCode(), data.config_index);
 				}
+				if (data.request.getMethod() == "HEAD")
+					data.response.setBody("");
 				data.response.prepare();
 				data.client_state = STATE_WRITING;
 				updatePollEvents(fd, POLLOUT);

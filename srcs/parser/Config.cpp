@@ -200,7 +200,7 @@ void	Config::validate(const std::vector<ServerConfig> &servers) {
 			}
 
 			for (const std::string &method : loc.methods) {
-				if (method != "GET" && method != "POST" && method != "DELETE")
+				if (method != "GET" && method != "POST" && method != "DELETE" && method != "HEAD")
 					throw std::runtime_error("Unsupported method: " + method);
 			}
 
