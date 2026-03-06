@@ -91,7 +91,7 @@ Response RequestHandler::handleGet(const Request &req, const Location &loc) {
 				return res;
 			}
 			else {
-				res.setStatusCode(403);
+				res.setStatusCode(404);
 				return res;
 			}
 		}
