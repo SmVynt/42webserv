@@ -395,18 +395,18 @@ Response RequestHandler::parseCgiOutput(const std::string& raw_output){
 Response RequestHandler::handlePost(const Request &req, const Location &loc){
 	Response res;
 
-	if (!loc.upload_dir.has_value()){
-		res.setStatusCode(403);
-		return res;
-	}
-
 	std::string content_type = "";
 	std::map<std::string, std::string> headers = req.getHeaders();
 	if (headers.count("content-type"))
 		content_type = headers["content-type"];
 
-	if (content_type.find("multipart/form-data") != std::string::npos)
+	if (content_type.find("multipart/form-data") != std::string::npos) {
+		if (!loc.upload_dir.has_value()){
+			res.setStatusCode(403);
+			return res;
+		}
 		return handleMultipartUpload(req, loc, content_type, res);
+	}
 
 
 	if (!req.getBody().empty()){
