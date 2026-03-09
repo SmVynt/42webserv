@@ -248,10 +248,41 @@ bool Cluster::handleClientRequest(int fd)
 				data.config_index = resolved;
 
 			const ServerConfig& config = _config_data[data.config_index];
-			const Location* loc = RequestHandler::findLocation(data.request.getPath(), config);
 
 			Logger::info("Request " + data.request.getMethod() + " " +
 						data.request.getPath() + " fully received [FD " + std::to_string(fd) + "]");
+
+			const Location* loc = RequestHandler::resolveLocation(data.request.getPath(), data.request.getMethod(), config);
+
+			// Update client_max_body_size based on location, or use server default
+			Logger::info("DEBUG: resolveLocation returned loc=" + std::string(loc ? "found" : "nullptr"));
+			if (loc)
+				Logger::info("DEBUG: location path='" + loc->path + "'");
+			if (loc && loc->client_max_body_size.has_value()) {
+				data.request.setMaxBodySize(loc->client_max_body_size.value());
+			} else if (loc) {
+				data.request.setMaxBodySize(config.client_max_body_size);
+			}
+
+			// Re-validate Content-Length against correct max body size
+			if (data.request.getHeaders().count("content-length")) {
+				try{
+					unsigned long cl = std::stoul(data.request.getHeaders("content-length"));
+					unsigned long max_size = (loc && loc->client_max_body_size.has_value())
+						? loc->client_max_body_size.value()
+						: config.client_max_body_size;
+					if (cl > max_size) {
+						data.response = generateErrorResponse(413, data.config_index);
+						data.response.prepare();
+						data.client_state = STATE_WRITING;
+						updatePollEvents(fd, POLLOUT);
+						return false;
+					}
+				} catch (...) {
+					// Ignore parse errors, already handled
+				}
+			}
+
 			if (loc && RequestHandler::isCgiRequest(data.request, *loc))
 			{
 				Logger::info("Launching CGI for FD " + std::to_string(fd));

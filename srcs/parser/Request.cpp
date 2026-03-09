@@ -160,19 +160,8 @@ void	Request::validate(){
 		_error_code = 400;
 		return ;
 	}
-	if (_headers.count("content-length")){
-		try{
-			unsigned long cl = std::stoul(_headers["content-length"]);
-			if (cl > _max_body_size){
-				_state = ERROR;
-				_error_code = 413;
-				return;
-			}
-		} catch (...){
-			_state = ERROR;
-			_error_code = 400;
-		}
-	}
+	// Note: Content-Length validation is deferred to Cluster/RequestHandler
+	// where we know the correct client_max_body_size from Location config
 }
 
 bool Request::shouldKeepAlive() const{

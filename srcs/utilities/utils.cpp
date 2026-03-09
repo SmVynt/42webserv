@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include <errno.h>
 
 std::string	loadFile(const std::string &path){
 	std::ifstream file(path.c_str());
@@ -13,8 +14,10 @@ void	safeClose(int &fd) {
 	if (fd >= 0)
 	{
 		if (close(fd) == -1) {
-			// std::cerr << "Error: close() failed" << std::endl;
-			Logger::error("Error: close() failed");
+			// EBADF is expected if fd was already closed elsewhere
+			if (errno != EBADF) {
+				Logger::error("Error: close() failed: " + std::string(strerror(errno)));
+			}
 		}
 		fd = -1;
 	}

@@ -23,6 +23,7 @@
 class CGIconfig {
 	public:
 		std::string			script_path;
+		std::string			request_uri;
 		std::string			query_string;
 		std::string			post_data;
 		// int				timeout;
@@ -30,6 +31,7 @@ class CGIconfig {
 		const ServerConfig	&_config;
 
 		CGIconfig(const std::string &path,
+				  const std::string &uri,
 				  const std::string &query,
 				  const std::string &post,
 				  const ServerConfig &config);
@@ -40,6 +42,7 @@ class CGIconfig {
 class CGIexecutor {
 	private:
 		std::string							_script_path;
+		std::string							_request_uri;
 		std::string							_query_string;
 		std::string							_post_data;
 		std::map<std::string, std::string>	_env_vars;
