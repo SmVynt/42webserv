@@ -1,4 +1,5 @@
 #include "Request.hpp"
+#include "Logger.hpp"
 
 Request::Request(): _state(METHOD_LINE), _error_code(0) {}
 
@@ -25,7 +26,11 @@ int		Request::getErrorCode() const { return _error_code; }
 
 void	Request::consume(const std::string &new_chunk){
 	_raw_storage += new_chunk;
-	// std::cout << _raw_storage << std::endl;
+
+	if (_state == METHOD_LINE && !_raw_storage.empty()) {
+		std::string preview = _raw_storage.substr(0, std::min((size_t)100, _raw_storage.size()));
+		Logger::info("DEBUG consume: state=METHOD_LINE, raw_storage size=" + std::to_string(_raw_storage.size()) + ", preview=[" + preview + "]");
+	}
 
 	while (_state != ERROR && _state != DONE){
 		// std::cout << _raw_storage << std::endl;
@@ -36,7 +41,13 @@ void	Request::consume(const std::string &new_chunk){
 
 			std::string line = _raw_storage.substr(0, pos);
 			_raw_storage.erase(0, pos + 2);
+
+			if (line.empty())
+				continue;
+
 			parseRequestLine(line);
+			if (_state == ERROR)
+				break;
 			_state = HEADERS;
 		}
 		else if (_state == HEADERS){
@@ -130,6 +141,7 @@ void Request::parseHeaders(const std::string &line) {
 }
 
 void	Request::parseRequestLine(const std::string &line){
+	Logger::info("DEBUG parseRequestLine: [" + line + "]");
 	std::istringstream iss(line);
 	std::string	method;
 	std::string	path;
