@@ -30,6 +30,7 @@ struct ServerConfig {
 	std::map<int, std::string> error_pages;
 	std::vector<Location> locations;
 	int	client_timeout;
+	int	session_timeout;
 };
 
 class Config {

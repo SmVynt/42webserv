@@ -1,21 +1,19 @@
 #include "Session.hpp"
 
-Session::Session() : _id(generateSessionId()), _created_at(time(NULL)) {
+Session::Session() : _id(generateSessionId()), _created_at(time(NULL)), _last_accessed(time(NULL)) {
 	Logger::info("New session created with ID: " + _id);
 }
-Session::Session(const Session &other) : _id(other._id), _created_at(other._created_at) {
-	_cookies = other._cookies;
+Session::Session(const Session &other) : _id(other._id), _created_at(other._created_at), _last_accessed(other._last_accessed) {
 }
 Session &Session::operator = (const Session &other) {
 	if (this != &other) {
 		_id = other._id;
 		_created_at = other._created_at;
-		_cookies = other._cookies;
+		_last_accessed = other._last_accessed;
 	}
 	return *this;
 }
 Session::~Session() {
-	Logger::info("Session with ID: " + _id + " destroyed.");
 }
 
 std::string	Session::getId() const {
@@ -37,26 +35,10 @@ std::string	Session::generateSessionId() {
 	return sessionId;
 }
 
-Cookie	Session::createCookie(const std::string &line) {
-	Cookie temp;
-	size_t eq_pos = line.find('=');
-	if (eq_pos == std::string::npos){
-		temp.name = "";
-		temp.value = "";
-		return temp;
-	}
-
-	temp.name = line.substr(0, eq_pos);
-	temp.value = line.substr(eq_pos + 1);
-
-	return temp;
+void	Session::touch() {
+	_last_accessed = time(NULL);
 }
 
-std::string	Session::cookieToString(const Cookie &cookie) {
-	return cookie.name + "=" + cookie.value;
-}
-
-void	Session::addCookie(const Cookie &cookie) {
-	_cookies.push_back(cookie);
-	Logger::info("Added cookie: " + cookie.name + "=" + cookie.value + " to session ID: " + _id);
+bool	Session::isExpired(time_t timeout) const {
+	return (time(NULL) - _last_accessed) > timeout;
 }

@@ -2,15 +2,9 @@
 # define SESSION_HPP
 
 # include <string>
-# include <vector>
 # include <fstream>
 # include <time.h>
 # include "Logger.hpp"
-
-struct Cookie {
-	std::string	name;
-	std::string	value;
-};
 
 class Session {
 	public:
@@ -20,15 +14,14 @@ class Session {
 		~Session();
 
 		std::string	getId() const;
-
-		std::string	generateSessionId();
-		Cookie		createCookie(const std::string &line);
-		std::string	cookieToString(const Cookie &cookie);
-		void		addCookie(const Cookie &cookie);
+		void		touch();
+		bool		isExpired(time_t timeout) const;
 	private:
-		std::string			_id;
-		time_t				_created_at;
-		std::vector<Cookie>	_cookies;
+		std::string	generateSessionId();
+
+		std::string	_id;
+		time_t		_created_at;
+		time_t		_last_accessed;
 };
 
 

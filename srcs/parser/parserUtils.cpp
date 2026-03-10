@@ -17,6 +17,7 @@ void printConfig(const std::vector<ServerConfig> &servers) {
 
 		std::cout << "\n  Max Body:     " << srv.client_max_body_size << " bytes" << std::endl;
 		std::cout << "  Timeout:      " << srv.client_timeout << " seconds" << std::endl;
+		std::cout << "  Session TTL:  " << srv.session_timeout << " seconds" << std::endl;
 
 
 		std::cout << "  Error Pages:  " << std::endl;

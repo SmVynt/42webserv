@@ -266,6 +266,8 @@ bool Cluster::handleClientRequest(int fd)
 				_active_sessions.push_back(new_session);
 				session_id = _active_sessions.back().getId();
 				data.is_new_session = true;
+			} else {
+				findSessionById(session_id)->touch();
 			}
 			data.session_id = session_id;
 
@@ -310,7 +312,7 @@ bool Cluster::handleClientRequest(int fd)
 				data.client_state = STATE_PROCESSING;
 				data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
 				if (data.is_new_session)
-					data.response.addHeader("Set-Cookie", "session_id=" + data.session_id + "; Path=/; HttpOnly");
+					data.response.addHeader("Set-Cookie", "session_id=" + data.session_id + "; Path=/");
 				data.response.prepare();
 				data.client_state = STATE_WRITING;
 				updatePollEvents(fd, POLLOUT);
@@ -539,6 +541,19 @@ void Cluster::handleTimeout()
 	}
 	for (int fd : fd_to_close)
 		closeConnection(fd);
+
+	// Clean expired sessions
+	int session_ttl = 300;
+	if (!_config_data.empty() && _config_data[0].session_timeout > 0)
+		session_ttl = _config_data[0].session_timeout;
+	for (auto it = _active_sessions.begin(); it != _active_sessions.end(); ) {
+		if (it->isExpired(session_ttl)) {
+			Logger::info("Session expired: " + it->getId());
+			it = _active_sessions.erase(it);
+		} else {
+			++it;
+		}
+	}
 }
 
 Response Cluster::generateErrorResponse(int code, int config_index) {
@@ -604,7 +619,7 @@ void Cluster::handleCgiEnd(int cgi_fd)
 
 		client_data.response = RequestHandler::parseCgiOutput(cgi_data.cgi_raw_output);
 		if (client_data.is_new_session)
-			client_data.response.addHeader("Set-Cookie", "session_id=" + client_data.session_id + "; Path=/; HttpOnly");
+			client_data.response.addHeader("Set-Cookie", "session_id=" + client_data.session_id + "; Path=/");
 		client_data.response.prepare();
 
 		client_data.client_state = STATE_WRITING;
