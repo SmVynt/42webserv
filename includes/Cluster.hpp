@@ -62,6 +62,7 @@ struct FDMetadata{
 	CGIexecutor*	cgi_executor;	// CGI obj arr
 
 	std::string		session_id;			// Session ID for this client
+	Session*		session_ptr;		// Pointer to the session object associated with this client
 	bool			is_new_session;		// True if a new session was created for this request
 
 	bool			is_ready_to_close;	// Flag to mark the descriptor for removal from the loop

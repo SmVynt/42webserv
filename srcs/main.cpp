@@ -26,6 +26,7 @@ int main(int argc, char **argv) {
 		sigemptyset(&sa.sa_mask);
 		sigaction(SIGTERM, &sa, NULL);
 		sigaction(SIGINT, &sa, NULL);
+		signal(SIGPIPE, SIG_IGN);
 
 		webserv.setupCluster();
 

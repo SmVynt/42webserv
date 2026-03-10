@@ -228,15 +228,14 @@ void	Cluster::resolveSession(FDMetadata &data) {
 			Session* session = findSessionById(session_id);
 			if (session_id.empty() || !session) {
 				Session new_session;
-				// _active_sessions.push_back(new_session);
-				// session_id = _active_sessions.back().getId();
 				session_id = new_session.getId();
-				_active_sessions[session_id] = new_session;
+				_active_sessions.insert({session_id, new_session});
 				data.is_new_session = true;
 			} else {
 				session->touch();
 			}
 			data.session_id = session_id;
+			data.session_ptr = &_active_sessions.at(session_id);
 }
 
 bool Cluster::handleClientRequest(int fd)
@@ -293,24 +292,6 @@ bool Cluster::handleClientRequest(int fd)
 				data.request.setMaxBodySize(config.client_max_body_size);
 			}
 
-			// Re-validate Content-Length against correct max body size
-			// if (data.request.getHeaders().count("content-length")) {
-			// 	try{
-			// 		unsigned long cl = std::stoul(data.request.getHeaders("content-length"));
-			// 		unsigned long max_size = (loc && loc->client_max_body_size.has_value())
-			// 			? loc->client_max_body_size.value()
-			// 			: config.client_max_body_size;
-			// 		if (cl > max_size) {
-			// 			data.response = generateErrorResponse(413, data.config_index);
-			// 			data.response.prepare();
-			// 			data.client_state = STATE_WRITING;
-			// 			updatePollEvents(fd, POLLOUT);
-			// 			return false;
-			// 		}
-			// 	} catch (...) {
-			// 		// Ignore parse errors, already handled
-			// 	}
-			// }
 			{
 				unsigned long max_size = (loc && loc->client_max_body_size.has_value())
 					? loc->client_max_body_size.value()
@@ -359,11 +340,13 @@ bool Cluster::handleClientRequest(int fd)
 					data.client_state = STATE_PROCESSING;
 					int pipe_out = data.cgi_executor->getOutputFd();
 					addFD(pipe_out, FD_CGI_OUT, fd, config.client_timeout);
+					_fd_table[pipe_out].session_ptr = data.session_ptr;
 					// Register stdin pipe for poll-driven non-blocking write (POST body)
 					int pipe_in = data.cgi_executor->getInputFd();
 					if (pipe_in >= 0)
 					{
 						addFD(pipe_in, FD_CGI_IN, fd, config.client_timeout);
+						_fd_table[pipe_in].session_ptr = data.session_ptr;
 						updatePollEvents(pipe_in, POLLOUT);
 					}
 					updatePollEvents(fd, 0);
@@ -463,6 +446,8 @@ void Cluster::closeConnection(int fd)
 			for (int p : orphan_pipes)
 				removeFD(p);
 		}
+		if (!it->second.session_id.empty())
+			_active_sessions.erase(it->second.session_id);
 		removeFD(fd);
 	}
 	Logger::info("[Cluster] Connection closed on [FD " + std::to_string(fd) + "]");
@@ -532,8 +517,11 @@ void Cluster::resetConnection(int fd){
 	data.config_index = saved_config;
 	data.last_activity = time(NULL);
 	data.request.setMaxBodySize(saved_max_body);
+	if (!data.session_id.empty())
+		_active_sessions.erase(data.session_id);
 	data.is_new_session = false;
 	data.session_id.clear();
+	data.session_ptr = nullptr;
 
 	updatePollEvents(fd, POLLIN);
 
@@ -563,6 +551,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.timeout_value = timeout;
 	metadata.is_ready_to_close = false;
 	metadata.cgi_executor = nullptr;
+	metadata.session_ptr = nullptr;
 	metadata.port = -1;
 	metadata.config_index = -1;
 	metadata.is_new_session = false;
@@ -611,7 +600,7 @@ void Cluster::handleTimeout()
 		closeConnection(fd);
 
 	// Clean expired sessions
-	int session_ttl = 300;
+	int session_ttl = 10;
 	if (!_config_data.empty() && _config_data[0].session_timeout > 0)
 		session_ttl = _config_data[0].session_timeout;
 	for (auto it = _active_sessions.begin(); it != _active_sessions.end(); ) {
@@ -666,6 +655,9 @@ void	Cluster::handleCgiRead(int cgi_fd)
 		cgi_data.cgi_raw_output.append(buffer, bytes);
 		updateActivity(cgi_fd);
 		updateActivity(cgi_data.client_fd);
+		Session* session = cgi_data.session_ptr;
+		if (session)
+			session->touch();
 	}
 	else if (bytes == 0)
 	{
@@ -729,6 +721,9 @@ void	Cluster::handleCgiWrite(int cgi_in_fd)
 	if (written > 0)
 	{
 		pipe_data.cgi_write_offset += static_cast<size_t>(written);
+		Session* session = pipe_data.session_ptr;
+		if (session)
+			session->touch();
 		if (pipe_data.cgi_write_offset >= body.size())
 			removeFD(cgi_in_fd);  // All written — close write end, child gets EOF on stdin
 	}
