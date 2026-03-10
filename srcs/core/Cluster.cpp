@@ -213,6 +213,31 @@ void Cluster::acceptNewConnection(int listen_fd)
 	std::cout << "New client connected: FD " << client_fd << std::endl;
 }
 
+void	Cluster::resolveSession(FDMetadata &data) {
+	std::string	cookie_header = data.request.getHeaders("cookie");
+			std::string	session_id;
+
+			if (!cookie_header.empty()) {
+				size_t start_pos = cookie_header.find("session_id=");
+				if (start_pos != std::string::npos) {
+					start_pos += 11;
+					size_t end_pos = cookie_header.find(';', start_pos);
+					session_id = cookie_header.substr(start_pos, end_pos == std::string::npos ? end_pos : end_pos - start_pos);
+				}
+			}
+			Session* session = findSessionById(session_id);
+			if (session_id.empty() || !session) {
+				Session new_session;
+				// _active_sessions.push_back(new_session);
+				// session_id = _active_sessions.back().getId();
+				session_id = new_session.getId();
+				_active_sessions[session_id] = new_session;
+				data.is_new_session = true;
+			} else {
+				session->touch();
+			}
+			data.session_id = session_id;
+}
 
 bool Cluster::handleClientRequest(int fd)
 {
@@ -248,6 +273,9 @@ bool Cluster::handleClientRequest(int fd)
 				data.config_index = resolved;
 
 			const ServerConfig& config = _config_data[data.config_index];
+
+			resolveSession(data);
+
 			const Location* loc = RequestHandler::findLocation(data.request.getPath(), config);
 
 			Logger::info("Request " + data.request.getMethod() + " " +
@@ -260,6 +288,8 @@ bool Cluster::handleClientRequest(int fd)
 				if (!data.cgi_executor || data.cgi_executor->hasError())
 				{
 					data.response = generateErrorResponse(500, data.config_index);
+					if (data.is_new_session)
+						data.response.addHeader("Set-Cookie", "session_id=" + data.session_id + "; Path=/");
 					data.response.prepare();
 					data.client_state = STATE_WRITING;
 					updatePollEvents(fd, POLLOUT);
@@ -288,6 +318,8 @@ bool Cluster::handleClientRequest(int fd)
 			{
 				data.client_state = STATE_PROCESSING;
 				data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
+				if (data.is_new_session)
+					data.response.addHeader("Set-Cookie", "session_id=" + data.session_id + "; Path=/");
 				data.response.prepare();
 				data.client_state = STATE_WRITING;
 				updatePollEvents(fd, POLLOUT);
@@ -439,6 +471,8 @@ void Cluster::resetConnection(int fd){
 	data.config_index = saved_config;
 	data.last_activity = time(NULL);
 	data.request.setMaxBodySize(saved_max_body);
+	data.is_new_session = false;
+	data.session_id.clear();
 
 	updatePollEvents(fd, POLLIN);
 
@@ -470,6 +504,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.cgi_executor = nullptr;
 	metadata.port = -1;
 	metadata.config_index = -1;
+	metadata.is_new_session = false;
 
 	_fd_table[fd] = metadata;
 }
@@ -513,6 +548,19 @@ void Cluster::handleTimeout()
 	}
 	for (int fd : fd_to_close)
 		closeConnection(fd);
+
+	// Clean expired sessions
+	int session_ttl = 300;
+	if (!_config_data.empty() && _config_data[0].session_timeout > 0)
+		session_ttl = _config_data[0].session_timeout;
+	for (auto it = _active_sessions.begin(); it != _active_sessions.end(); ) {
+		if (it->second.isExpired(session_ttl)) {
+			Logger::info("Session expired: " + it->second.getId());
+			it = _active_sessions.erase(it);
+		} else {
+			++it;
+		}
+	}
 }
 
 Response Cluster::generateErrorResponse(int code, int config_index) {
@@ -577,6 +625,8 @@ void Cluster::handleCgiEnd(int cgi_fd)
 		FDMetadata& client_data = _fd_table.at(client_fd);
 
 		client_data.response = RequestHandler::parseCgiOutput(cgi_data.cgi_raw_output);
+		if (client_data.is_new_session)
+			client_data.response.addHeader("Set-Cookie", "session_id=" + client_data.session_id + "; Path=/");
 		client_data.response.prepare();
 
 		client_data.client_state = STATE_WRITING;
@@ -641,4 +691,12 @@ void	signal_handler(int sig) {
 			 cluster_reference()->requestShutdown();
 		}
 	}
+}
+
+Session* Cluster::findSessionById(const std::string& sessionId) {
+	auto it = _active_sessions.find(sessionId);
+	if (it != _active_sessions.end()) {
+		return &(it->second);
+	}
+	return nullptr;
 }

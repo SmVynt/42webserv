@@ -20,6 +20,7 @@
 #include "Methods.hpp"
 #include <csignal>
 #include "CGI.hpp"
+#include "Session.hpp"
 
 class CGIexecutor;
 // Default value
@@ -59,6 +60,9 @@ struct FDMetadata{
 	Response		response;		// Response obj
 	CGIexecutor*	cgi_executor;	// CGI obj arr
 
+	std::string		session_id;			// Session ID for this client
+	bool			is_new_session;		// True if a new session was created for this request
+
 	bool			is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
 };
 class Cluster {
@@ -74,6 +78,8 @@ class Cluster {
 		void	run();
 		// Request graceful shutdown
 		void	requestShutdown();
+		// Session and cookie management
+		Session*	findSessionById(const std::string& sessionId);
 	private:
 		// Utils for run()
 		void acceptNewConnection(int listen_fd);
@@ -82,6 +88,7 @@ class Cluster {
 		void updatePollEvents(int fd, short events);
 		bool handleClientResponse(int fd);
 		int resolveServerConfig(int port, const std::string& host);
+		void	resolveSession(FDMetadata &data);
 
 		// Utils for pollfds management and metadata
 		void addFD(int fd, FDType type, int client_ref, int timeout);
@@ -106,6 +113,9 @@ class Cluster {
 		std::map<int, int>			_listen_sockets;
 		// bool						_shutdown;
 		volatile sig_atomic_t		_shutdown;
+		// vector of active sessions for cookie management
+		// std::vector<Session>		_active_sessions;
+		std::map<std::string, Session>		_active_sessions;
 };
 
 Cluster*&	cluster_reference();
