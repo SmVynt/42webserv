@@ -28,6 +28,7 @@ std::vector<ServerConfig> Config::parse(){
 
 ServerConfig Config::parseServer() {
 	ServerConfig config;
+	config.session_timeout = 300;
 	if (_pos >= _tokens.size() || _tokens[_pos++] != "server")
 		throw std::runtime_error("Parser error: expected 'server'");
 
@@ -60,8 +61,13 @@ ServerConfig Config::parseServer() {
 		}
 		else if (key == "client_timeout"){
 			if (_pos >= _tokens.size())
-				throw std::runtime_error("Unexpected EOF after host");
+				throw std::runtime_error("Unexpected EOF after client_timeout");
 			config.client_timeout = std::stoi(_tokens[_pos++]);
+		}
+		else if (key == "session_timeout"){
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Unexpected EOF after session_timeout");
+			config.session_timeout = std::stoi(_tokens[_pos++]);
 		}
 		else if (key == "client_max_body_size") {
 			if (_pos >= _tokens.size())
