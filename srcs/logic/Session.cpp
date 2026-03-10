@@ -3,17 +3,15 @@
 Session::Session() : _id(generateSessionId()), _created_at(time(NULL)) {
 	Logger::info("New session created with ID: " + _id);
 }
-Session::Session(const Session &other) : _id(generateSessionId()), _created_at(time(NULL)) {
+Session::Session(const Session &other) : _id(other._id), _created_at(other._created_at) {
 	_cookies = other._cookies;
-	Logger::info("New session created with ID: " + _id + "from another session: " + other._id);
 }
 Session &Session::operator = (const Session &other) {
 	if (this != &other) {
-		_id = generateSessionId();
-		_created_at = time(NULL);
+		_id = other._id;
+		_created_at = other._created_at;
 		_cookies = other._cookies;
 	}
-	Logger::info("Session assigned new ID: " + _id + " from session: " + other._id);
 	return *this;
 }
 Session::~Session() {

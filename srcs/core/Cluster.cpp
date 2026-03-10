@@ -252,22 +252,22 @@ bool Cluster::handleClientRequest(int fd)
 			// Extract cookies from headers
 			std::string	cookie_header = data.request.getHeaders("cookie");
 			std::string	session_id;
-			Session		*session = NULL;
 
 			if (!cookie_header.empty()) {
 				size_t start_pos = cookie_header.find("session_id=");
 				if (start_pos != std::string::npos) {
 					start_pos += 11;
 					size_t end_pos = cookie_header.find(';', start_pos);
-					session_id = cookie_header.substr(start_pos, end_pos == std::string::npos? end_pos : end_pos - start_pos);
-					session = findSessionById(session_id);
+					session_id = cookie_header.substr(start_pos, end_pos == std::string::npos ? end_pos : end_pos - start_pos);
 				}
 			}
-			if (!session) {
+			if (session_id.empty() || !findSessionById(session_id)) {
 				Session new_session;
 				_active_sessions.push_back(new_session);
-				session = &new_session;
+				session_id = _active_sessions.back().getId();
+				data.is_new_session = true;
 			}
+			data.session_id = session_id;
 
 			const Location* loc = RequestHandler::findLocation(data.request.getPath(), config);
 
@@ -309,6 +309,8 @@ bool Cluster::handleClientRequest(int fd)
 			{
 				data.client_state = STATE_PROCESSING;
 				data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
+				if (data.is_new_session)
+					data.response.addHeader("Set-Cookie", "session_id=" + data.session_id + "; Path=/; HttpOnly");
 				data.response.prepare();
 				data.client_state = STATE_WRITING;
 				updatePollEvents(fd, POLLOUT);
@@ -460,6 +462,8 @@ void Cluster::resetConnection(int fd){
 	data.config_index = saved_config;
 	data.last_activity = time(NULL);
 	data.request.setMaxBodySize(saved_max_body);
+	data.is_new_session = false;
+	data.session_id.clear();
 
 	updatePollEvents(fd, POLLIN);
 
@@ -491,6 +495,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.cgi_executor = nullptr;
 	metadata.port = -1;
 	metadata.config_index = -1;
+	metadata.is_new_session = false;
 
 	_fd_table[fd] = metadata;
 }
@@ -598,6 +603,8 @@ void Cluster::handleCgiEnd(int cgi_fd)
 		FDMetadata& client_data = _fd_table.at(client_fd);
 
 		client_data.response = RequestHandler::parseCgiOutput(cgi_data.cgi_raw_output);
+		if (client_data.is_new_session)
+			client_data.response.addHeader("Set-Cookie", "session_id=" + client_data.session_id + "; Path=/; HttpOnly");
 		client_data.response.prepare();
 
 		client_data.client_state = STATE_WRITING;
