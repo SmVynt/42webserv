@@ -88,6 +88,7 @@ class Cluster {
 		void updatePollEvents(int fd, short events);
 		bool handleClientResponse(int fd);
 		int resolveServerConfig(int port, const std::string& host);
+		void	resolveSession(FDMetadata &data);
 
 		// Utils for pollfds management and metadata
 		void addFD(int fd, FDType type, int client_ref, int timeout);

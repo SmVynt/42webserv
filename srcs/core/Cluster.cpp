@@ -213,6 +213,29 @@ void Cluster::acceptNewConnection(int listen_fd)
 	std::cout << "New client connected: FD " << client_fd << std::endl;
 }
 
+void	Cluster::resolveSession(FDMetadata &data) {
+	std::string	cookie_header = data.request.getHeaders("cookie");
+			std::string	session_id;
+
+			if (!cookie_header.empty()) {
+				size_t start_pos = cookie_header.find("session_id=");
+				if (start_pos != std::string::npos) {
+					start_pos += 11;
+					size_t end_pos = cookie_header.find(';', start_pos);
+					session_id = cookie_header.substr(start_pos, end_pos == std::string::npos ? end_pos : end_pos - start_pos);
+				}
+			}
+			Session* session = findSessionById(session_id);
+			if (session_id.empty() || !session) {
+				Session new_session;
+				_active_sessions.push_back(new_session);
+				session_id = _active_sessions.back().getId();
+				data.is_new_session = true;
+			} else {
+				session->touch();
+			}
+			data.session_id = session_id;
+}
 
 bool Cluster::handleClientRequest(int fd)
 {
@@ -249,27 +272,7 @@ bool Cluster::handleClientRequest(int fd)
 
 			const ServerConfig& config = _config_data[data.config_index];
 
-			// Extract cookies from headers
-			std::string	cookie_header = data.request.getHeaders("cookie");
-			std::string	session_id;
-
-			if (!cookie_header.empty()) {
-				size_t start_pos = cookie_header.find("session_id=");
-				if (start_pos != std::string::npos) {
-					start_pos += 11;
-					size_t end_pos = cookie_header.find(';', start_pos);
-					session_id = cookie_header.substr(start_pos, end_pos == std::string::npos ? end_pos : end_pos - start_pos);
-				}
-			}
-			if (session_id.empty() || !findSessionById(session_id)) {
-				Session new_session;
-				_active_sessions.push_back(new_session);
-				session_id = _active_sessions.back().getId();
-				data.is_new_session = true;
-			} else {
-				findSessionById(session_id)->touch();
-			}
-			data.session_id = session_id;
+			resolveSession(data);
 
 			const Location* loc = RequestHandler::findLocation(data.request.getPath(), config);
 
@@ -283,6 +286,8 @@ bool Cluster::handleClientRequest(int fd)
 				if (!data.cgi_executor || data.cgi_executor->hasError())
 				{
 					data.response = generateErrorResponse(500, data.config_index);
+					if (data.is_new_session)
+						data.response.addHeader("Set-Cookie", "session_id=" + data.session_id + "; Path=/");
 					data.response.prepare();
 					data.client_state = STATE_WRITING;
 					updatePollEvents(fd, POLLOUT);
