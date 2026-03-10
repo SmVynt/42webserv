@@ -265,21 +265,44 @@ bool Cluster::handleClientRequest(int fd)
 			}
 
 			// Re-validate Content-Length against correct max body size
-			if (data.request.getHeaders().count("content-length")) {
-				try{
-					unsigned long cl = std::stoul(data.request.getHeaders("content-length"));
-					unsigned long max_size = (loc && loc->client_max_body_size.has_value())
-						? loc->client_max_body_size.value()
-						: config.client_max_body_size;
-					if (cl > max_size) {
-						data.response = generateErrorResponse(413, data.config_index);
-						data.response.prepare();
-						data.client_state = STATE_WRITING;
-						updatePollEvents(fd, POLLOUT);
-						return false;
-					}
-				} catch (...) {
-					// Ignore parse errors, already handled
+			// if (data.request.getHeaders().count("content-length")) {
+			// 	try{
+			// 		unsigned long cl = std::stoul(data.request.getHeaders("content-length"));
+			// 		unsigned long max_size = (loc && loc->client_max_body_size.has_value())
+			// 			? loc->client_max_body_size.value()
+			// 			: config.client_max_body_size;
+			// 		if (cl > max_size) {
+			// 			data.response = generateErrorResponse(413, data.config_index);
+			// 			data.response.prepare();
+			// 			data.client_state = STATE_WRITING;
+			// 			updatePollEvents(fd, POLLOUT);
+			// 			return false;
+			// 		}
+			// 	} catch (...) {
+			// 		// Ignore parse errors, already handled
+			// 	}
+			// }
+			{
+				unsigned long max_size = (loc && loc->client_max_body_size.has_value())
+					? loc->client_max_body_size.value()
+					: config.client_max_body_size;
+				unsigned long body_size = data.request.getBody().size();
+
+				// Check Content-Length header
+				if (data.request.getHeaders().count("content-length")) {
+					try {
+						unsigned long cl = std::stoul(data.request.getHeaders("content-length"));
+						if (cl > max_size)
+							body_size = cl;
+					} catch (...) {}
+				}
+
+				if (body_size > max_size) {
+					data.response = generateErrorResponse(413, data.config_index);
+					data.response.prepare();
+					data.client_state = STATE_WRITING;
+					updatePollEvents(fd, POLLOUT);
+					return false;
 				}
 			}
 
