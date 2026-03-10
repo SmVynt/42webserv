@@ -228,8 +228,10 @@ void	Cluster::resolveSession(FDMetadata &data) {
 			Session* session = findSessionById(session_id);
 			if (session_id.empty() || !session) {
 				Session new_session;
-				_active_sessions.push_back(new_session);
-				session_id = _active_sessions.back().getId();
+				// _active_sessions.push_back(new_session);
+				// session_id = _active_sessions.back().getId();
+				session_id = new_session.getId();
+				_active_sessions[session_id] = new_session;
 				data.is_new_session = true;
 			} else {
 				session->touch();
@@ -552,8 +554,8 @@ void Cluster::handleTimeout()
 	if (!_config_data.empty() && _config_data[0].session_timeout > 0)
 		session_ttl = _config_data[0].session_timeout;
 	for (auto it = _active_sessions.begin(); it != _active_sessions.end(); ) {
-		if (it->isExpired(session_ttl)) {
-			Logger::info("Session expired: " + it->getId());
+		if (it->second.isExpired(session_ttl)) {
+			Logger::info("Session expired: " + it->second.getId());
 			it = _active_sessions.erase(it);
 		} else {
 			++it;
@@ -692,10 +694,9 @@ void	signal_handler(int sig) {
 }
 
 Session* Cluster::findSessionById(const std::string& sessionId) {
-	for (auto& session : _active_sessions) {
-		if (session.getId() == sessionId) {
-			return &session;
-		}
+	auto it = _active_sessions.find(sessionId);
+	if (it != _active_sessions.end()) {
+		return &(it->second);
 	}
 	return nullptr;
 }

@@ -114,7 +114,8 @@ class Cluster {
 		// bool						_shutdown;
 		volatile sig_atomic_t		_shutdown;
 		// vector of active sessions for cookie management
-		std::vector<Session>		_active_sessions;
+		// std::vector<Session>		_active_sessions;
+		std::map<std::string, Session>		_active_sessions;
 };
 
 Cluster*&	cluster_reference();
