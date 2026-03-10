@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <cstring>
+#include <filesystem>
 #include "Config.hpp"
 #include <algorithm>
 #include "Request.hpp"

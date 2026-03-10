@@ -276,10 +276,65 @@ bool Cluster::handleClientRequest(int fd)
 
 			resolveSession(data);
 
-			const Location* loc = RequestHandler::findLocation(data.request.getPath(), config);
+			// const Location* loc = RequestHandler::findLocation(data.request.getPath(), config);
 
 			Logger::info("Request " + data.request.getMethod() + " " +
 						data.request.getPath() + " fully received [FD " + std::to_string(fd) + "]");
+
+			const Location* loc = RequestHandler::resolveLocation(data.request.getPath(), data.request.getMethod(), config);
+
+			// Update client_max_body_size based on location, or use server default
+			Logger::info("DEBUG: resolveLocation returned loc=" + std::string(loc ? "found" : "nullptr"));
+			if (loc)
+				Logger::info("DEBUG: location path='" + loc->path + "'");
+			if (loc && loc->client_max_body_size.has_value()) {
+				data.request.setMaxBodySize(loc->client_max_body_size.value());
+			} else if (loc) {
+				data.request.setMaxBodySize(config.client_max_body_size);
+			}
+
+			// Re-validate Content-Length against correct max body size
+			// if (data.request.getHeaders().count("content-length")) {
+			// 	try{
+			// 		unsigned long cl = std::stoul(data.request.getHeaders("content-length"));
+			// 		unsigned long max_size = (loc && loc->client_max_body_size.has_value())
+			// 			? loc->client_max_body_size.value()
+			// 			: config.client_max_body_size;
+			// 		if (cl > max_size) {
+			// 			data.response = generateErrorResponse(413, data.config_index);
+			// 			data.response.prepare();
+			// 			data.client_state = STATE_WRITING;
+			// 			updatePollEvents(fd, POLLOUT);
+			// 			return false;
+			// 		}
+			// 	} catch (...) {
+			// 		// Ignore parse errors, already handled
+			// 	}
+			// }
+			{
+				unsigned long max_size = (loc && loc->client_max_body_size.has_value())
+					? loc->client_max_body_size.value()
+					: config.client_max_body_size;
+				unsigned long body_size = data.request.getBody().size();
+
+				// Check Content-Length header
+				if (data.request.getHeaders().count("content-length")) {
+					try {
+						unsigned long cl = std::stoul(data.request.getHeaders("content-length"));
+						if (cl > max_size)
+							body_size = cl;
+					} catch (...) {}
+				}
+
+				if (body_size > max_size) {
+					data.response = generateErrorResponse(413, data.config_index);
+					data.response.prepare();
+					data.client_state = STATE_WRITING;
+					updatePollEvents(fd, POLLOUT);
+					return false;
+				}
+			}
+
 			if (loc && RequestHandler::isCgiRequest(data.request, *loc))
 			{
 				Logger::info("Launching CGI for FD " + std::to_string(fd));
@@ -318,6 +373,12 @@ bool Cluster::handleClientRequest(int fd)
 			{
 				data.client_state = STATE_PROCESSING;
 				data.response = RequestHandler::handleRequest(data.request, _config_data[data.config_index]);
+				Logger::warning("Status code" + std::to_string(data.response.getStatusCode()));
+				if (data.response.getStatusCode() != 200 && data.response.getStatusCode() != 201){
+					data.response = generateErrorResponse(data.response.getStatusCode(), data.config_index);
+				}
+				if (data.request.getMethod() == "HEAD")
+					data.response.setBody("");
 				if (data.is_new_session)
 					data.response.addHeader("Set-Cookie", "session_id=" + data.session_id + "; Path=/");
 				data.response.prepare();
@@ -571,6 +632,8 @@ Response Cluster::generateErrorResponse(int code, int config_index) {
 		const ServerConfig& config = _config_data[config_index];
 		if (config.error_pages.count(code)) {
 			std::string path = config.error_pages.at(code);
+			if (!path.empty() && path[0] == '/')
+				path.erase(0, 1);
 			std::string custom_body = loadFile(path);
 			if (!custom_body.empty()) {
 				res.setStatusCode(code);

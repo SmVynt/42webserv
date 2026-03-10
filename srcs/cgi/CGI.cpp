@@ -1,10 +1,12 @@
 #include "CGI.hpp"
 
 CGIconfig::CGIconfig(const std::string &path,
+				   const std::string &uri,
 				   const std::string &query,
 				   const std::string &post,
 				   const ServerConfig &config) :
 	script_path(path),
+	request_uri(uri),
 	query_string(query),
 	post_data(post),
 	// timeout(config.client_timeout),
@@ -16,6 +18,7 @@ CGIconfig::~CGIconfig() {}
 
 CGIexecutor::CGIexecutor(const CGIconfig &CGIconfig) :
 	_script_path(CGIconfig.script_path),
+	_request_uri(CGIconfig.request_uri),
 	_query_string(CGIconfig.query_string),
 	_post_data(CGIconfig.post_data),
 	// _timeout_seconds(CGIconfig.timeout),
@@ -87,12 +90,23 @@ void	CGIexecutor::setupEnvironment() {
 	// setEnvKey("REMOTE_ADDR", "127.0.0.1");
 	// setEnvKey("REMOTE_HOST", "localhost");
 
-	_env_vars["PATH_INFO"] = "";
-	_env_vars["PATH_TRANSLATED"] = "";
-	_env_vars["SCRIPT_NAME"] = _script_path[0] == '/' ? _script_path : "/" + _script_path;
+	// REQUEST_URI is the original request path from the client
+	_env_vars["REQUEST_URI"] = _request_uri;
+	// PATH_INFO should be the request URI (path from client), not the file path!
+	_env_vars["PATH_INFO"] = _request_uri;
+	_env_vars["PATH_TRANSLATED"] = _script_path;
+	_env_vars["SCRIPT_NAME"] = "";
+
 	char abs_script_path[PATH_MAX];
-	if (realpath(_script_path.c_str(), abs_script_path)) {
-		_env_vars["SCRIPT_FILENAME"] = std::string(abs_script_path);
+	char cwd[PATH_MAX];
+	if (getcwd(cwd, sizeof(cwd)) != NULL) {
+		if (realpath(_script_path.c_str(), abs_script_path)) {
+			_env_vars["SCRIPT_FILENAME"] = std::string(abs_script_path);
+		} else {
+			// If realpath fails, construct the path manually
+			std::string full_path = std::string(cwd) + "/" + _script_path;
+			_env_vars["SCRIPT_FILENAME"] = full_path;
+		}
 	} else {
 		_env_vars["SCRIPT_FILENAME"] = _script_path;
 	}
@@ -218,7 +232,8 @@ int	CGIexecutor::start() {
 		return 1;
 	}
 
-	safeClose(_pipe_in_fd);
+	// Do NOT close _pipe_in_fd here - Cluster needs it to write POST body
+	// safeClose(_pipe_in_fd);
 
 	return 0;
 };
@@ -334,7 +349,7 @@ CGIexecutor*	runCGI(const std::string &script_path,
 				const std::string &post_data,
 				const ServerConfig &config)
 {
-	CGIconfig	cgi_config(script_path, query_string, post_data, config);
+	CGIconfig	cgi_config(script_path, script_path, query_string, post_data, config);
 	CGIexecutor*	cgi = new CGIexecutor(cgi_config);
 
 	if (cgi->start() != 0) {

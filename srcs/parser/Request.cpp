@@ -1,4 +1,5 @@
 #include "Request.hpp"
+#include "Logger.hpp"
 
 Request::Request(): _state(METHOD_LINE), _error_code(0) {}
 
@@ -25,9 +26,13 @@ int		Request::getErrorCode() const { return _error_code; }
 
 void	Request::consume(const std::string &new_chunk){
 	_raw_storage += new_chunk;
-	// std::cout << _raw_storage << std::endl;
 
-	while (true){
+	if (_state == METHOD_LINE && !_raw_storage.empty()) {
+		std::string preview = _raw_storage.substr(0, std::min((size_t)100, _raw_storage.size()));
+		Logger::info("DEBUG consume: state=METHOD_LINE, raw_storage size=" + std::to_string(_raw_storage.size()) + ", preview=[" + preview + "]");
+	}
+
+	while (_state != ERROR && _state != DONE){
 		// std::cout << _raw_storage << std::endl;
 		if (_state == METHOD_LINE){
 			size_t pos = _raw_storage.find("\r\n");
@@ -36,7 +41,13 @@ void	Request::consume(const std::string &new_chunk){
 
 			std::string line = _raw_storage.substr(0, pos);
 			_raw_storage.erase(0, pos + 2);
+
+			if (line.empty())
+				continue;
+
 			parseRequestLine(line);
+			if (_state == ERROR)
+				break;
 			_state = HEADERS;
 		}
 		else if (_state == HEADERS){
@@ -48,6 +59,8 @@ void	Request::consume(const std::string &new_chunk){
 			_raw_storage.erase(0, pos + 2);
 			if (line.empty()) {
 				validate();
+				if (_state == ERROR)
+					break;
 				if (_headers.count("transfer-encoding") && _headers["transfer-encoding"] == "chunked")
 					_state = CHUNK_SIZE;
 				else if (_headers.count("content-length"))
@@ -128,6 +141,7 @@ void Request::parseHeaders(const std::string &line) {
 }
 
 void	Request::parseRequestLine(const std::string &line){
+	Logger::info("DEBUG parseRequestLine: [" + line + "]");
 	std::istringstream iss(line);
 	std::string	method;
 	std::string	path;
@@ -137,7 +151,7 @@ void	Request::parseRequestLine(const std::string &line){
 		_state = ERROR;
 		return;
 	}
-	if (method != "GET" && method != "POST" && method != "DELETE"){
+	if (method != "GET" && method != "POST" && method != "DELETE" && method != "HEAD"){
 		_state = ERROR;
 		return;
 	}
@@ -158,19 +172,8 @@ void	Request::validate(){
 		_error_code = 400;
 		return ;
 	}
-	if (_headers.count("content-length")){
-		try{
-			unsigned long cl = std::stoul(_headers["content-length"]);
-			if (cl > _max_body_size){
-				_state = ERROR;
-				_error_code = 413;
-				return;
-			}
-		} catch (...){
-			_state = ERROR;
-			_error_code = 400;
-		}
-	}
+	// Note: Content-Length validation is deferred to Cluster/RequestHandler
+	// where we know the correct client_max_body_size from Location config
 }
 
 bool Request::shouldKeepAlive() const{

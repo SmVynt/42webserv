@@ -48,18 +48,77 @@ bool RequestHandler::isCgiRequest(const Request &req, const Location &loc){
 
 const Location *RequestHandler::findLocation(const std::string &uri, const ServerConfig &config){
 	const Location* best_match = nullptr;
+	const Location* extension_match = nullptr;
 	size_t max_len = 0;
 
 	for (size_t i = 0; i < config.locations.size(); i++) {
 		const Location &loc = config.locations[i];
-		if (uri.compare(0, loc.path.length(), loc.path) == 0) {
+
+		// Check if path starts with .dot (extension-based location)
+		if (!loc.path.empty() && loc.path[0] == '.') {
+			// Extension-based location matching
+			size_t dot_pos = uri.find_last_of(".");
+			if (dot_pos != std::string::npos) {
+				std::string file_ext = uri.substr(dot_pos);
+				if (file_ext == loc.path) {
+					// Extension match found - store but don't return yet
+					// We'll return it only if method is allowed
+					extension_match = &loc;
+				}
+			}
+		}
+		else if (uri.compare(0, loc.path.length(), loc.path) == 0) {
+			// Path-based location matching
 			if (loc.path.length() > max_len) {
 				max_len = loc.path.length();
 				best_match = &loc;
 			}
 		}
 	}
-	return best_match;
+
+	// Return extension match if found, otherwise path match
+	return extension_match ? extension_match : best_match;
+}
+
+const Location *RequestHandler::resolveLocation(const std::string &uri, const std::string &method, const ServerConfig &config){
+	const Location *loc = findLocation(uri, config);
+
+	if (!loc)
+		return nullptr;
+
+	// Check if method is allowed for this location
+	bool method_allowed = false;
+	for (const auto& m : loc->methods) {
+		if (m == method) {
+			method_allowed = true;
+			break;
+		}
+	}
+
+	// If extension-based location doesn't allow this method, find path-based location
+	if (!method_allowed && !loc->path.empty() && loc->path[0] == '.') {
+		const Location* fallback = nullptr;
+		size_t max_len = 0;
+
+		for (size_t i = 0; i < config.locations.size(); i++) {
+			const Location &candidate = config.locations[i];
+			// Only consider path-based locations (not extension-based)
+			if (candidate.path.empty() || candidate.path[0] == '.')
+				continue;
+
+			if (uri.compare(0, candidate.path.length(), candidate.path) == 0) {
+				if (candidate.path.length() > max_len) {
+					max_len = candidate.path.length();
+					fallback = &candidate;
+				}
+			}
+		}
+
+		if (fallback)
+			loc = fallback;
+	}
+
+	return loc;
 }
 
 Response RequestHandler::handleGet(const Request &req, const Location &loc) {
@@ -91,7 +150,7 @@ Response RequestHandler::handleGet(const Request &req, const Location &loc) {
 				return res;
 			}
 			else {
-				res.setStatusCode(403);
+				res.setStatusCode(404);
 				return res;
 			}
 		}
@@ -121,7 +180,7 @@ Response RequestHandler::handleGet(const Request &req, const Location &loc) {
 
 Response RequestHandler::handleRequest(Request &req, const ServerConfig &config){
 	Response res;
-	const Location *loc = findLocation(req.getPath(), config);
+	const Location *loc = resolveLocation(req.getPath(), req.getMethod(), config);
 
 	if (!loc){
 		res.setStatusCode(404);
@@ -155,7 +214,7 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 		return res;
 	}
 
-	if (req.getMethod() == "GET")
+	if (req.getMethod() == "GET" || req.getMethod() == "HEAD")
 		res = handleGet(req, *loc);
 	else if (req.getMethod() == "POST")
 		res = handlePost(req, *loc);
@@ -238,9 +297,41 @@ CGIexecutor *RequestHandler::handleCgi(const Request &req, const Location &loc, 
 	std::string script_uri = (query_pos == std::string::npos) ? full_path : full_path.substr(0, query_pos);
 	std::string query_string = (query_pos == std::string::npos) ? "" : full_path.substr(query_pos + 1);
 
-	std::string script_path = loc.root + script_uri.substr(loc.path.length());
+	// Handle extension-based locations differently
+	std::string script_path;
+	if (!loc.path.empty() && loc.path[0] == '.') {
+		// Extension-based location
+		// Check if there's a matching path-based location to use for path resolution
+		const Location* path_loc = nullptr;
+		size_t max_len = 0;
 
-	CGIconfig cgi_config(script_path, query_string, req.getBody(), config);
+		for (size_t i = 0; i < config.locations.size(); i++) {
+			const Location &candidate = config.locations[i];
+			// Only consider path-based locations
+			if (candidate.path.empty() || candidate.path[0] == '.')
+				continue;
+
+			if (script_uri.compare(0, candidate.path.length(), candidate.path) == 0) {
+				if (candidate.path.length() > max_len) {
+					max_len = candidate.path.length();
+					path_loc = &candidate;
+				}
+			}
+		}
+
+		// If we found a matching path-based location, use its root and path logic
+		if (path_loc) {
+			script_path = path_loc->root + script_uri.substr(path_loc->path.length());
+		} else {
+			// No matching path-based location, use extension location root with full path
+			script_path = loc.root + script_uri;
+		}
+	} else {
+		// Path-based location: strip the location path prefix
+		script_path = loc.root + script_uri.substr(loc.path.length());
+	}
+
+	CGIconfig cgi_config(script_path, script_uri, query_string, req.getBody(), config);
 	CGIexecutor *executor = new CGIexecutor(cgi_config);
 
 	std::map<std::string, std::string> req_headers = req.getHeaders();
@@ -304,18 +395,18 @@ Response RequestHandler::parseCgiOutput(const std::string& raw_output){
 Response RequestHandler::handlePost(const Request &req, const Location &loc){
 	Response res;
 
-	if (!loc.upload_dir.has_value()){
-		res.setStatusCode(403);
-		return res;
-	}
-
 	std::string content_type = "";
 	std::map<std::string, std::string> headers = req.getHeaders();
 	if (headers.count("content-type"))
 		content_type = headers["content-type"];
 
-	if (content_type.find("multipart/form-data") != std::string::npos)
+	if (content_type.find("multipart/form-data") != std::string::npos) {
+		if (!loc.upload_dir.has_value()){
+			res.setStatusCode(403);
+			return res;
+		}
 		return handleMultipartUpload(req, loc, content_type, res);
+	}
 
 
 	if (!req.getBody().empty()){

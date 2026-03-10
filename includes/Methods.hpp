@@ -27,6 +27,7 @@ class RequestHandler{
 
 		public:
 		static const Location	*findLocation(const std::string &uri, const ServerConfig &config);
+		static const Location	*resolveLocation(const std::string &uri, const std::string &method, const ServerConfig &config);
 		static Response			handleRequest(Request &req, const ServerConfig &config);
 		static bool				isCgiRequest(const Request &req, const Location &loc);
 		static CGIexecutor		*handleCgi(const Request &req, const Location &loc, const ServerConfig &config);

@@ -23,6 +23,7 @@ std::map<int, std::string>	Response::_initStatusMessages(){
 	std::map<int, std::string> m;
 	m[200] = "OK";
 	m[201] = "Created";
+	m[204] = "No Content";
 	m[301] = "Moved Permanently";
 	m[302] = "Found";
 	m[307] = "Temporary Redirect";
@@ -34,6 +35,7 @@ std::map<int, std::string>	Response::_initStatusMessages(){
 	m[413] = "Payload Too Large";
 	m[500] = "Internal Server Error";
 	m[501] = "Not Implemented";
+	m[502] = "Bad Gateway";
 	return m;
 }
 
@@ -41,7 +43,7 @@ std::string	Response::build(){
 	std::stringstream res;
 
 	res << _version << " " << _status_code << " " << _status_messages.at(_status_code) << "\r\n";
-	if (!_body.empty() && _headers.find("Content-Length") == _headers.end()){
+	if (_headers.find("Content-Length") == _headers.end()){
 		addHeader("Content-Length", std::to_string(_body.size()));
 	}
 

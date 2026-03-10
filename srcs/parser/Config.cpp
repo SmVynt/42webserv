@@ -170,6 +170,30 @@ Location Config::parseLocation() {
 			std::string url = _tokens[_pos++];
 			loc.redirection = {code, url};
 		}
+		else if (key == "client_max_body_size") {
+			if (_pos >= _tokens.size())
+				throw std::runtime_error("Missing value for client_max_body_size");
+			size_t p;
+			unsigned long bytes = std::stol(_tokens[_pos], &p);
+			int mult = 1;
+			if (p < _tokens[_pos].length()) {
+				char unit = _tokens[_pos][p];
+				if (unit == 'M' || unit == 'm')
+					mult = 1048576;
+				else if (unit == 'G' || unit == 'g')
+					mult = 1073741824;
+				else if (unit == 'K' || unit == 'k')
+					mult = 1024;
+				else if (unit != ';')
+					throw std::runtime_error("Invalid unit for client_max_body_size");
+				if (mult > 1 && bytes > (std::numeric_limits<unsigned long>::max() / mult))
+					throw std::runtime_error("client_max_body_size is too large");
+
+				bytes *= mult;
+			}
+			loc.client_max_body_size = bytes;
+			_pos++;
+		}
 		else {
 			throw std::runtime_error("Unknown location directive: " + key);
 		}
@@ -194,8 +218,8 @@ void	Config::validate(const std::vector<ServerConfig> &servers) {
 		if (srv.port <= 0 || srv.port > 65535)
 			throw std::runtime_error("Invalid port: " + std::to_string(srv.port));
 
-		if (!unique_servers.insert({srv.host, srv.port}).second)
-			throw std::runtime_error("Duplicate server on " + srv.host + ":" + std::to_string(srv.port));
+		// if (!unique_servers.insert({srv.host, srv.port}).second)
+		// 	throw std::runtime_error("Duplicate server on " + srv.host + ":" + std::to_string(srv.port));
 
 		for (const Location &loc : srv.locations) {
 			if (loc.path.empty())
@@ -206,7 +230,7 @@ void	Config::validate(const std::vector<ServerConfig> &servers) {
 			}
 
 			for (const std::string &method : loc.methods) {
-				if (method != "GET" && method != "POST" && method != "DELETE")
+				if (method != "GET" && method != "POST" && method != "DELETE" && method != "HEAD")
 					throw std::runtime_error("Unsupported method: " + method);
 			}
 

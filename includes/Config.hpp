@@ -20,6 +20,7 @@ struct Location {
 	std::optional<std::string> cgi_path;
 	std::optional<std::string> cgi_ext;
 	std::pair<int, std::string> redirection;
+	std::optional<unsigned long> client_max_body_size;
 };
 
 struct ServerConfig {
