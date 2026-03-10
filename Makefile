@@ -18,7 +18,8 @@ PARSER_SRCS	= parser/Config.cpp \
 				parser/parserUtils.cpp
 
 LOGIC_SRCS	= logic/Response.cpp \
-				logic/Methods.cpp
+				logic/Methods.cpp \
+				logic/Session.cpp
 
 CGI_SRCS	= cgi/CGI.cpp \
 				cgi/cgiUtils.cpp \

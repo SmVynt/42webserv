@@ -248,6 +248,27 @@ bool Cluster::handleClientRequest(int fd)
 				data.config_index = resolved;
 
 			const ServerConfig& config = _config_data[data.config_index];
+
+			// Extract cookies from headers
+			std::string	cookie_header = data.request.getHeaders("cookie");
+			std::string	session_id;
+			Session		*session = NULL;
+
+			if (!cookie_header.empty()) {
+				size_t start_pos = cookie_header.find("session_id=");
+				if (start_pos != std::string::npos) {
+					start_pos += 11;
+					size_t end_pos = cookie_header.find(';', start_pos);
+					session_id = cookie_header.substr(start_pos, end_pos == std::string::npos? end_pos : end_pos - start_pos);
+					session = findSessionById(session_id);
+				}
+			}
+			if (!session) {
+				Session new_session;
+				_active_sessions.push_back(new_session);
+				session = &new_session;
+			}
+
 			const Location* loc = RequestHandler::findLocation(data.request.getPath(), config);
 
 			Logger::info("Request " + data.request.getMethod() + " " +
@@ -641,4 +662,13 @@ void	signal_handler(int sig) {
 			 cluster_reference()->requestShutdown();
 		}
 	}
+}
+
+Session* Cluster::findSessionById(const std::string& sessionId) {
+	for (auto& session : _active_sessions) {
+		if (session.getId() == sessionId) {
+			return &session;
+		}
+	}
+	return nullptr;
 }

@@ -20,6 +20,7 @@
 #include "Methods.hpp"
 #include <csignal>
 #include "CGI.hpp"
+#include "Session.hpp"
 
 class CGIexecutor;
 // Default value
@@ -74,6 +75,8 @@ class Cluster {
 		void	run();
 		// Request graceful shutdown
 		void	requestShutdown();
+		// Session and cookie management
+		Session*	findSessionById(const std::string& sessionId);
 	private:
 		// Utils for run()
 		void acceptNewConnection(int listen_fd);
@@ -106,6 +109,8 @@ class Cluster {
 		std::map<int, int>			_listen_sockets;
 		// bool						_shutdown;
 		volatile sig_atomic_t		_shutdown;
+		// vector of active sessions for cookie management
+		std::vector<Session>		_active_sessions;
 };
 
 Cluster*&	cluster_reference();
