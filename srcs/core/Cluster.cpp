@@ -4,6 +4,17 @@ Cluster::Cluster() : _shutdown(false) {}
 Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config), _shutdown(false) {}
 Cluster::~Cluster()
 {
+	// First pass: kill and delete all CGI executors to prevent leaks
+	for (auto& [fd, meta] : _fd_table)
+	{
+		if (meta.cgi_executor)
+		{
+			meta.cgi_executor->killChildProcess();
+			delete meta.cgi_executor;
+			meta.cgi_executor = nullptr;
+		}
+	}
+	// Second pass: close all file descriptors and clean up
 	std::vector<int> fds_to_close;
 	for (const auto& pfd : _pollfds)
 	{
