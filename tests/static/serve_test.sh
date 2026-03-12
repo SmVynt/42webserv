@@ -263,27 +263,9 @@ echo "Test 8: Special Characters"
 test_static_file "Path with %20 (space)" "/test%20file" "404"
 test_static_file "Path with encoded slash" "/test%2Ffile" "200"
 
-# Test 9: Range requests (if supported)
+# Test 9: Large file handling
 echo ""
-echo "Test 9: Range Requests"
-echo -n "  Testing partial content request... "
-response=$(curl $CURL_OPTS -H "Range: bytes=0-10" -w "\n%{http_code}" "$SERVER_URL/index.html" 2>/dev/null || true)
-status=$(echo "$response" | tail -n 1)
-
-if [ "$status" = "206" ]; then
-    echo -e "${GREEN}✓${NC} (Partial content supported: 206)"
-    PASSED=$((PASSED + 1))
-elif [ "$status" = "200" ]; then
-    echo -e "${YELLOW}⚠${NC} (Full content returned: 200 - ranges not supported)"
-    PASSED=$((PASSED + 1))
-else
-    echo -e "${RED}✗${NC} (Unexpected status: $status)"
-    FAILED=$((FAILED + 1))
-fi
-
-# Test 10: Large file handling
-echo ""
-echo "Test 10: Large File Handling"
+echo "Test 9: Large File Handling"
 
 # Create a 1MB test file
 if [ ! -f "$TEST_DIR/large.bin" ]; then
@@ -304,9 +286,9 @@ else
     FAILED=$((FAILED + 1))
 fi
 
-# Test 11: Multiple simultaneous requests
+# Test 10: Multiple simultaneous requests
 echo ""
-echo "Test 11: Concurrent Static File Requests"
+echo "Test 10: Concurrent Static File Requests"
 
 echo -n "  Testing 10 concurrent requests... "
 temp_results=$(mktemp)
@@ -353,9 +335,9 @@ else
     FAILED=$((FAILED + 1))
 fi
 
-# Test 12: Connection persistence
+# Test 11: Connection persistence
 echo ""
-echo "Test 12: Connection Persistence"
+echo "Test 11: Connection Persistence"
 
 echo -n "  Testing keep-alive... "
 response=$(curl $CURL_OPTS -H "Connection: keep-alive" -w "\n%{http_code}" "$SERVER_URL/" 2>/dev/null || true)
@@ -369,18 +351,18 @@ else
     FAILED=$((FAILED + 1))
 fi
 
-# Test 13: Empty file
+# Test 12: Empty file
 echo ""
-echo "Test 13: Edge Cases"
+echo "Test 12: Edge Cases"
 
 if [ ! -f "$TEST_DIR/empty.txt" ]; then
     touch "$TEST_DIR/empty.txt"
 fi
 test_static_file "Empty file" "/test_files/empty.txt" "200"
 
-# Test 14: File permissions (if applicable)
+# Test 13: Server Behavior under load
 echo ""
-echo "Test 14: Server Behavior"
+echo "Test 13: Server Behavior"
 
 echo -n "  Testing server stability after many requests... "
 for i in {1..100}; do

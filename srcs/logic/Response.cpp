@@ -33,6 +33,7 @@ std::map<int, std::string>	Response::_initStatusMessages(){
 	m[404] = "Not Found";
 	m[405] = "Method Not Allowed";
 	m[413] = "Payload Too Large";
+	m[414] = "URI Too Long";
 	m[500] = "Internal Server Error";
 	m[501] = "Not Implemented";
 	m[502] = "Bad Gateway";

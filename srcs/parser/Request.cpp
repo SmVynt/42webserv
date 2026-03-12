@@ -153,6 +153,11 @@ void	Request::parseRequestLine(const std::string &line){
 		_error_code = 400;
 		return;
 	}
+	if (path.length() > 2048){
+		_state = ERROR;
+		_error_code = 414;
+		return;
+	}
 	if (method != "GET" && method != "POST" && method != "DELETE" && method != "HEAD"){
 		_state = ERROR;
 		_error_code = 405;
