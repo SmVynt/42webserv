@@ -1,5 +1,6 @@
 #include "Request.hpp"
 #include "Logger.hpp"
+#include "utils.hpp"
 
 Request::Request(): _state(METHOD_LINE), _error_code(0) {}
 
@@ -149,19 +150,22 @@ void	Request::parseRequestLine(const std::string &line){
 
 	if (!(iss >> method >> path >> version)){
 		_state = ERROR;
+		_error_code = 400;
 		return;
 	}
 	if (method != "GET" && method != "POST" && method != "DELETE" && method != "HEAD"){
 		_state = ERROR;
+		_error_code = 405;
 		return;
 	}
 	if (version != "HTTP/1.1"){
 		_state = ERROR;
+		_error_code = 505;
 		return;
 	}
 
 	_method = method;
-	_path = path;
+	_path = urlDecode(path);
 	_http_version = version;
 
 }

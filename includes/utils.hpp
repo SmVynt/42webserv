@@ -8,6 +8,7 @@
 # include "Logger.hpp"
 
 std::string	loadFile(const std::string &path);
+std::string	urlDecode(const std::string &str);
 /**
  * Safely closes a file descriptor and sets it to -1 to prevent accidental reuse.
  */
