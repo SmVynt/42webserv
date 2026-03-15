@@ -560,6 +560,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.client_fd = client_ref;
 	metadata.last_activity = time(NULL);
 	metadata.timeout_value = timeout;
+	metadata.timeout_reading_value = 3;
 	metadata.is_ready_to_close = false;
 	metadata.cgi_executor = nullptr;
 	metadata.session_ptr = nullptr;
@@ -605,6 +606,14 @@ void Cluster::handleTimeout()
 		if (now - metadata.last_activity > metadata.timeout_value){
 			Logger::info("Timeout [FD " + std::to_string(fd) + "]");
 			fd_to_close.push_back(fd);
+		} else if (metadata.type == FD_CLIENT && metadata.client_state == STATE_READING
+				&& metadata.timeout_reading_value > 0
+				&& now - metadata.last_activity > metadata.timeout_reading_value) {
+			Logger::info("Reading timeout [FD " + std::to_string(fd) + "]");
+			metadata.response = generateErrorResponse(408, metadata.config_index);
+			metadata.response.prepare();
+			metadata.client_state = STATE_WRITING;
+			updatePollEvents(fd, POLLOUT);
 		}
 	}
 	for (int fd : fd_to_close)

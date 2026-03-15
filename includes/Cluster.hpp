@@ -49,6 +49,7 @@ struct FDMetadata{
 
 	time_t			last_activity;	// Timestamp of the last I/O operation for timeout logic
 	int				timeout_value;	// Timeout limit
+	int				timeout_reading_value;	// Timeout limit for reading operations
 
 	int				port;			// Port that client int using
 	int				config_index;	// index in _config_data vector
