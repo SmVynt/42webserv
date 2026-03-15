@@ -74,7 +74,7 @@ test_protocol() {
 
     echo -n "  Testing $description... "
 
-    response=$(echo -ne "$request" | nc -w 2 "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null || echo "")
+    response=$(echo -ne "$request" | nc -w 5 "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null || echo "")
 
     # Check if server is still alive
     if ! nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then

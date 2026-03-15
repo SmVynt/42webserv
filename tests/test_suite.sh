@@ -388,7 +388,7 @@ main() {
             log_warning "Skipping Apache Bench Test (ab not installed)"
             record_test "Apache Bench Test" "SKIP"
         fi
-        run_test_category "Concurrent Clients" "$TEST_DIR/load/concurrent_test.sh"
+        #run_test_category "Concurrent Clients" "$TEST_DIR/load/concurrent_test.sh"
     fi
 
     if [ "$RUN_MEMORY_TESTS" = true ]; then

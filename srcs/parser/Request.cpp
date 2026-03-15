@@ -170,6 +170,11 @@ void	Request::parseRequestLine(const std::string &line){
 	}
 
 	_method = method;
+	if (path.length() > 255) {
+		_state = ERROR;
+		_error_code = 414;
+		return;
+	}
 	_path = urlDecode(path);
 	_http_version = version;
 
