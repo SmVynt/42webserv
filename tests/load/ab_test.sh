@@ -15,6 +15,17 @@ SERVER_PORT="${SERVER_PORT:-8080}"
 SERVER_URL="${SERVER_URL:-http://${SERVER_HOST}:${SERVER_PORT}/}"
 LOG_FILE="${LOG_FILE:-/tmp/ab_test.log}"
 
+case "$SERVER_URL" in
+	*/) ;;
+	*) SERVER_URL="${SERVER_URL}/" ;;
+esac
+
+echo "$PROJECT_ROOT"
+echo "SERVER_HOST: $SERVER_HOST"
+echo "SERVER_PORT: $SERVER_PORT"
+echo "SERVER_URL: $SERVER_URL"
+cd $PROJECT_ROOT
+
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'

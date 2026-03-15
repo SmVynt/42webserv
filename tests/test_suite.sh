@@ -71,6 +71,13 @@ while [[ $# -gt 0 ]]; do
             RUN_NGINX_COMPARISON=false
             shift
             ;;
+        --load)
+            RUN_LOAD_TESTS=true
+			RUN_EDGE_TESTS=false
+			RUN_MEMORY_TESTS=false
+			RUN_STATIC_TESTS=false
+			shift
+			;;
         -h|--help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -376,17 +383,17 @@ main() {
     fi
 
     if [ "$RUN_LOAD_TESTS" = true ]; then
-        if [ "$HAS_SIEGE" = true ]; then
-            run_test_category "Siege Load Test" "$TEST_DIR/load/siege_test.sh"
-        else
-            log_warning "Skipping Siege Load Test (siege not installed)"
-            record_test "Siege Load Test" "SKIP"
-        fi
         if [ "$HAS_AB" = true ]; then
             run_test_category "Apache Bench Test" "$TEST_DIR/load/ab_test.sh"
         else
             log_warning "Skipping Apache Bench Test (ab not installed)"
             record_test "Apache Bench Test" "SKIP"
+        fi
+        if [ "$HAS_SIEGE" = true ]; then
+            run_test_category "Siege Load Test" "$TEST_DIR/load/siege_test.sh"
+        else
+            log_warning "Skipping Siege Load Test (siege not installed)"
+            record_test "Siege Load Test" "SKIP"
         fi
         #run_test_category "Concurrent Clients" "$TEST_DIR/load/concurrent_test.sh"
     fi

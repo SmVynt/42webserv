@@ -388,7 +388,9 @@ echo "=========================================="
 TOTAL=$((PASSED + FAILED))
 echo "Total tests: $TOTAL"
 echo -e "${GREEN}Passed: $PASSED${NC}"
-echo -e "${RED}Failed: $FAILED${NC}"
+if [ $FAILED -gt 0 ]; then
+    echo -e "${RED}Failed: $FAILED${NC}"
+fi
 
 if [ $TOTAL -gt 0 ]; then
     PASS_RATE=$((PASSED * 100 / TOTAL))
