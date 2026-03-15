@@ -17,6 +17,8 @@ int main(int argc, char **argv) {
 		// reqHardcode();
 		// reqChunkedHardcode();
 
+		Logger::setLogLevel(LogLevel::DEBUG);
+
 		Cluster webserv(servers);
 		cluster_reference() = &webserv;
 

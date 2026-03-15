@@ -30,7 +30,7 @@ void	Request::consume(const std::string &new_chunk){
 
 	if (_state == METHOD_LINE && !_raw_storage.empty()) {
 		std::string preview = _raw_storage.substr(0, std::min((size_t)100, _raw_storage.size()));
-		Logger::info("DEBUG consume: state=METHOD_LINE, raw_storage size=" + std::to_string(_raw_storage.size()) + ", preview=[" + preview + "]");
+		Logger::debug("consume: state=METHOD_LINE, raw_storage size=" + std::to_string(_raw_storage.size()) + ", preview=[" + preview + "]");
 	}
 
 	while (_state != ERROR && _state != DONE){
@@ -142,7 +142,7 @@ void Request::parseHeaders(const std::string &line) {
 }
 
 void	Request::parseRequestLine(const std::string &line){
-	Logger::info("DEBUG parseRequestLine: [" + line + "]");
+	Logger::debug("parseRequestLine: [" + line + "]");
 	std::istringstream iss(line);
 	std::string	method;
 	std::string	path;

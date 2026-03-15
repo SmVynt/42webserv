@@ -18,18 +18,18 @@ std::string	urlDecode(const std::string &str) {
 
 	for (size_t i = 0; i < str.length(); ++i) {
 		if (str[i] == '%' && i + 2 < str.length()) {
-			// Get the two hex digits
 			std::string hex = str.substr(i + 1, 2);
 			std::istringstream iss(hex);
 			int value;
-			if (iss >> std::hex >> value) {
+			if (iss >> std::hex >> value && hex != "2F" && hex != "2f") {
 				result += static_cast<char>(value);
-				i += 2; // Skip the next 2 characters
+				i += 2;
+				Logger::debug("Decoded '%" + hex + "' to '" + std::string(1, static_cast<char>(value)) + "'");
 			} else {
-				result += str[i]; // Invalid hex, keep the %
+				result += str[i];
 			}
 		} else if (str[i] == '+') {
-			result += ' '; // Convert + to space (query string convention)
+			result += ' ';
 		} else {
 			result += str[i];
 		}

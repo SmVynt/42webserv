@@ -294,9 +294,9 @@ bool Cluster::handleClientRequest(int fd)
 			const Location* loc = RequestHandler::resolveLocation(data.request.getPath(), data.request.getMethod(), config);
 
 			// Update client_max_body_size based on location, or use server default
-			Logger::info("DEBUG: resolveLocation returned loc=" + std::string(loc ? "found" : "nullptr"));
+			Logger::debug("resolveLocation returned loc=" + std::string(loc ? "found" : "nullptr"));
 			if (loc)
-				Logger::info("DEBUG: location path='" + loc->path + "'");
+				Logger::debug("location path='" + loc->path + "'");
 			if (loc && loc->client_max_body_size.has_value()) {
 				data.request.setMaxBodySize(loc->client_max_body_size.value());
 			} else if (loc) {
