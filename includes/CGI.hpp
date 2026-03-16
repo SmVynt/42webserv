@@ -26,8 +26,6 @@ class CGIconfig {
 		std::string			request_uri;
 		std::string			query_string;
 		std::string			post_data;
-		// int				timeout;
-		// unsigned long	max_output_size;
 		const ServerConfig	&_config;
 
 		CGIconfig(const std::string &path,
@@ -47,8 +45,6 @@ class CGIexecutor {
 		std::string							_post_data;
 		std::map<std::string, std::string>	_env_vars;
 
-		// time_t								_timeout_seconds;
-		// unsigned long						_max_output_size;
 		const ServerConfig					&_config;
 		time_t								_start_time;
 		pid_t								_child_pid;
@@ -59,11 +55,6 @@ class CGIexecutor {
 		bool 								_is_complete;
 		CGIError::Type						_error_type;
 
-		// static constexpr int	DEFAULT_TIMEOUT_S = 10;
-		static constexpr size_t	BUFFER_SIZE = 4096;
-		static constexpr size_t	DEFAULT_MAX_OUTPUT_SIZE = 10 * 1024 * 1024;
-		static constexpr int	POLL_INTERVAL_MS = 100;
-
 		void	runChild(int pipe_in[2], int pipe_out[2]);
 		void	setupEnvironment();
 
@@ -71,7 +62,6 @@ class CGIexecutor {
 		CGIexecutor(const CGIconfig &config);
 		~CGIexecutor();
 
-		// void	setTimeout(int seconds);
 		void	setQuery(const std::string &query);
 		void	setPostData(const std::string &data);
 		void	setHttpHeader(const std::string &name, const std::string &value);
@@ -81,7 +71,6 @@ class CGIexecutor {
 		int			start();
 		void		setComplete(bool complete);
 		int			isComplete();
-		int			readOutput();
 		bool		checkTimeout();
 		int			getOutputFd() const;
 		int			getInputFd() const;
@@ -93,32 +82,32 @@ class CGIexecutor {
 		bool			hasError() const;
 };
 
-/**
- * Runs a CGI script with the given parameters and returns the exit status.
- * @param script_path The path to the CGI script to execute.
- * @param query_string The query string to pass to the CGI script (optional).
- * @param post_data The POST data to pass to the CGI script (optional).
- * @param config Server configuration containing timeout and max body size settings.
- *
- * Example usage:
- * runCGI("script.py");
- * runCGI("script.py", "name=John");
- * runCGI("script.py", 30);
- * runCGI("script.py", "name=John", "data=value");
- * runCGI("script.py", "name=John", "data=value", 30);
- *
- * @return The exit status of the CGI script, or -1 on error.
- */
-CGIexecutor*	runCGI(const std::string &script_path,
-				const std::string &query_string,
-				const std::string &post_data,
-				const ServerConfig &config);
+// /**
+//  * Runs a CGI script with the given parameters and returns the exit status.
+//  * @param script_path The path to the CGI script to execute.
+//  * @param query_string The query string to pass to the CGI script (optional).
+//  * @param post_data The POST data to pass to the CGI script (optional).
+//  * @param config Server configuration containing timeout and max body size settings.
+//  *
+//  * Example usage:
+//  * runCGI("script.py");
+//  * runCGI("script.py", "name=John");
+//  * runCGI("script.py", 30);
+//  * runCGI("script.py", "name=John", "data=value");
+//  * runCGI("script.py", "name=John", "data=value", 30);
+//  *
+//  * @return The exit status of the CGI script, or -1 on error.
+//  */
+// CGIexecutor*	runCGI(const std::string &script_path,
+// 				const std::string &query_string,
+// 				const std::string &post_data,
+// 				const ServerConfig &config);
 
-CGIexecutor*	runCGI(const std::string &script_path,
-				const std::string &query_string,
-				const ServerConfig &config);
+// CGIexecutor*	runCGI(const std::string &script_path,
+// 				const std::string &query_string,
+// 				const ServerConfig &config);
 
-CGIexecutor*	runCGI(const std::string &script_path,
-				const ServerConfig &config);
+// CGIexecutor*	runCGI(const std::string &script_path,
+// 				const ServerConfig &config);
 
 #endif

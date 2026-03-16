@@ -21,8 +21,6 @@ CGIexecutor::CGIexecutor(const CGIconfig &CGIconfig) :
 	_request_uri(CGIconfig.request_uri),
 	_query_string(CGIconfig.query_string),
 	_post_data(CGIconfig.post_data),
-	// _timeout_seconds(CGIconfig.timeout),
-	// _max_output_size(CGIconfig.max_output_size),
 	_config(CGIconfig._config)
 	{
 	_error_type = CGIError::NO_ERROR;
@@ -36,6 +34,7 @@ CGIexecutor::CGIexecutor(const CGIconfig &CGIconfig) :
 
 CGIexecutor::~CGIexecutor() {
 	killChildProcess();
+	Logger::debug("CGIexecutor destroyed for script: " + _script_path);
 }
 
 void	CGIexecutor::setQuery(const std::string &query)
@@ -81,18 +80,9 @@ void	CGIexecutor::setupEnvironment() {
 	// Set QUERY_STRING from config
 	_env_vars["QUERY_STRING"] = _query_string;
 
-	// Set defaults only if not already set by setter methods
-	// setEnvKey("SERVER_NAME", "localhost");
 	setEnvKey("SERVER_NAME", _config.server_names.empty() ? "localhost" : _config.server_names[0]);
-	// setEnvKey("SERVER_PORT", "8080");
 	setEnvKey("SERVER_PORT", _config.port > 0? std::to_string(_config.port) : "8080");
-	// setEnvKey("REQUEST_METHOD", "GET");
-	// setEnvKey("REMOTE_ADDR", "127.0.0.1");
-	// setEnvKey("REMOTE_HOST", "localhost");
-
-	// REQUEST_URI is the original request path from the client
 	_env_vars["REQUEST_URI"] = _request_uri;
-	// PATH_INFO should be the request URI (path from client), not the file path!
 	_env_vars["PATH_INFO"] = _request_uri;
 	_env_vars["PATH_TRANSLATED"] = _script_path;
 	_env_vars["SCRIPT_NAME"] = "";
@@ -119,17 +109,27 @@ void	CGIexecutor::setupEnvironment() {
 }
 
 void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
+
+	//check if script exists and is executable
+	if (access(_script_path.c_str(), F_OK) != 0) {
+		Logger::error("CGI script not found: " + _script_path);
+		Logger::error("Exit code: " + std::to_string(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND)));
+		exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND));
+	}
+	if (access(_script_path.c_str(), X_OK) != 0) {
+		Logger::error("CGI script not executable: " + _script_path);
+		exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_EXECUTABLE));
+	}
+
 	if (dup2(pipe_in[0], STDIN_FILENO) == -1) {
 		Logger::error("dup2() failed for stdin");
 		_error_type = CGIError::PIPE_FAILED;
-		closePipes(pipe_in, pipe_out);
-		exit(1);
+		exit(CGIError::getExitFromError(CGIError::PIPE_FAILED));
 	}
 	if (dup2(pipe_out[1], STDOUT_FILENO) == -1) {
 		Logger::error("dup2() failed for stdout");
 		_error_type = CGIError::PIPE_FAILED;
-		closePipes(pipe_in, pipe_out);
-		exit(1);
+		exit(CGIError::getExitFromError(CGIError::PIPE_FAILED));
 	}
 
 	closePipes(pipe_in, pipe_out);
@@ -232,36 +232,9 @@ int	CGIexecutor::start() {
 		return 1;
 	}
 
-	// Do NOT close _pipe_in_fd here - Cluster needs it to write POST body
-	// safeClose(_pipe_in_fd);
-
 	return 0;
 };
 
-int	CGIexecutor::readOutput() {
-	char buffer[BUFFER_SIZE];
-	ssize_t bytes_read = read(_pipe_out_fd, buffer, BUFFER_SIZE - 1);
-	if (bytes_read > 0) {
-		// if (_output_buffer.size() + bytes_read > _max_output_size) {
-		if (_output_buffer.size() + bytes_read > _config.client_max_body_size) {
-			Logger::error("CGI output exceeded maximum allowed size");
-			_error_type = CGIError::OUTPUT_TOO_LARGE;
-			return -1;
-		}
-
-		try {
-			buffer[bytes_read] = '\0';
-			_output_buffer.append(buffer, bytes_read);
-		}
-		catch (const std::bad_alloc &e) {
-			Logger::error("Out of memory reading CGI output");
-			_error_type = CGIError::OUTPUT_TOO_LARGE;
-			killChildProcess();
-			return -1;
-		}
-	}
-	return bytes_read;
-}
 
 bool	CGIexecutor::checkTimeout() {
 	// bool timed_out = (time(NULL) - _start_time >= _timeout_seconds);
@@ -282,6 +255,9 @@ int	CGIexecutor::isComplete() {
 	if (result == 0) {
 		return 0; // Still running
 	} else if (result == _child_pid) {
+		Logger::debug("Exited with code: " + std::to_string(WEXITSTATUS(status)));
+		_error_type = CGIError::getErrorFromExit(WEXITSTATUS(status));
+		Logger::debug("Mapped error type: " + CGIError::getStatusCode(_error_type));
 		if (WIFEXITED(status)) {
 			_exit_status = WEXITSTATUS(status);
 		} else if (WIFSIGNALED(status)) {
@@ -339,35 +315,35 @@ bool	CGIexecutor::hasError() const {
 	return _error_type != CGIError::NO_ERROR;
 }
 
-//-----------------------//
-//       RUN CGI         //
-//-----------------------//
+// //-----------------------//
+// //       RUN CGI         //
+// //-----------------------//
 
-// Wrapper function for simple CGI execution
-CGIexecutor*	runCGI(const std::string &script_path,
-				const std::string &query_string,
-				const std::string &post_data,
-				const ServerConfig &config)
-{
-	CGIconfig	cgi_config(script_path, script_path, query_string, post_data, config);
-	CGIexecutor*	cgi = new CGIexecutor(cgi_config);
+// // Wrapper function for simple CGI execution
+// CGIexecutor*	runCGI(const std::string &script_path,
+// 				const std::string &query_string,
+// 				const std::string &post_data,
+// 				const ServerConfig &config)
+// {
+// 	CGIconfig	cgi_config(script_path, script_path, query_string, post_data, config);
+// 	CGIexecutor*	cgi = new CGIexecutor(cgi_config);
 
-	if (cgi->start() != 0) {
-		delete cgi;
-		return nullptr;
-	}
+// 	if (cgi->start() != 0) {
+// 		delete cgi;
+// 		return nullptr;
+// 	}
 
-	return cgi;
-}
+// 	return cgi;
+// }
 
-// Overload: script + config only
-CGIexecutor*	runCGI(const std::string &script_path, const ServerConfig &config) {
-	return runCGI(script_path, "", "", config);
-}
+// // Overload: script + config only
+// CGIexecutor*	runCGI(const std::string &script_path, const ServerConfig &config) {
+// 	return runCGI(script_path, "", "", config);
+// }
 
-// Overload: script + query + config (skip post_data)
-CGIexecutor*	runCGI(const std::string &script_path,
-					const std::string &query_string,
-					const ServerConfig &config) {
-	return runCGI(script_path, query_string, "", config);
-}
+// // Overload: script + query + config (skip post_data)
+// CGIexecutor*	runCGI(const std::string &script_path,
+// 					const std::string &query_string,
+// 					const ServerConfig &config) {
+// 	return runCGI(script_path, query_string, "", config);
+// }

@@ -5,25 +5,17 @@
 
 set -euo pipefail
 
-# Configuration (absolute paths)
-# PROJECT_ROOT="/root/projects/webserv"
-# SERVER_BIN="$PROJECT_ROOT/webserv"
-# CONFIG_FILE="$PROJECT_ROOT/config/default.conf"
-# SERVER_HOST="${SERVER_HOST:-127.0.0.1}"
-# SERVER_PORT="${SERVER_PORT:-8080}"
-# SERVER_URL="http://${SERVER_HOST}:${SERVER_PORT}"
-# CURL_OPTS="-4 -sS --connect-timeout 2 --max-time 5"
+# Always cd to project root for consistent paths
+cd /root/projects/webserv
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
-SERVER_BIN="${SERVER_BIN:-$PROJECT_ROOT/webserv}"
-CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/config/default.conf}"
+# Configuration (absolute paths)
+PROJECT_ROOT="/root/projects/webserv"
+SERVER_BIN="$PROJECT_ROOT/webserv"
+CONFIG_FILE="$PROJECT_ROOT/config/default.conf"
 SERVER_HOST="${SERVER_HOST:-127.0.0.1}"
 SERVER_PORT="${SERVER_PORT:-8080}"
 SERVER_URL="http://${SERVER_HOST}:${SERVER_PORT}"
 CURL_OPTS="-4 -sS --connect-timeout 2 --max-time 5"
-
-cd $PROJECT_ROOT
 
 # Colors
 GREEN='\033[0;32m'
@@ -106,7 +98,7 @@ test_cgi() {
     local expected_status="${3:-200}"
     local expected_content="$4"
     local method="${5:-GET}"
-    local post_data="${6:-}"
+    local post_data="$6"
 
     echo -n "  Testing $description... "
 
@@ -130,8 +122,6 @@ test_cgi() {
                 return 0
             else
                 echo -e "${RED}✗${NC} (Status: $status, Content mismatch)"
-				echo -e "Expected content: $expected_content"
-				echo -e "Received content: $body"
                 FAILED=$((FAILED + 1))
                 return 0
             fi
@@ -169,23 +159,6 @@ test_cgi "CGI Script Error" "/cgi-bin/python/error.py" "500" ""
 echo ""
 echo "Test 4: Edge Cases"
 test_cgi "CGI with Query String" "/cgi-bin/python/hello.py?name=Webserv" "200" "Webserv"
-
-# cgi_processes.push_back(runCGI("cgi-bin/python/test.py", default_config));
-# cgi_processes.push_back(runCGI("cgi-bin/python/test.py", "name=Alice&age=25", default_config));
-# cgi_processes.push_back(runCGI("cgi-bin/python/test.py", "", "username=testuser&password=secret123", default_config));
-# //php
-# cgi_processes.push_back(runCGI("cgi-bin/php/test.php", default_config));
-# cgi_processes.push_back(runCGI("cgi-bin/php/test.php", "name=Bob&city=Paris", default_config));
-# cgi_processes.push_back(runCGI("cgi-bin/php/test.php", "", "email=test@example.com&message=Hello", default_config));
-# // shell
-# cgi_processes.push_back(runCGI("cgi-bin/shell/test.sh", default_config));
-# // timeout tests
-# default_config.client_timeout = 2;
-# cgi_processes.push_back(runCGI("cgi-bin/python/slow.py", "5", "", default_config)); // should timeout
-# default_config.client_timeout = 5;
-# cgi_processes.push_back(runCGI("cgi-bin/python/slow.py", "2", "", default_config)); // should complete
-# default_config.client_timeout = 3;
-# cgi_processes.push_back(runCGI("cgi-bin/python/infinite.py", "", "", default_config)); // should timeout
 
 echo ""
 echo "=========================================="

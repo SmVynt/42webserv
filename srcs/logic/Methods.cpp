@@ -341,6 +341,9 @@ CGIexecutor *RequestHandler::handleCgi(const Request &req, const Location &loc, 
 	executor->setEnvKey("REQUEST_METHOD", req.getMethod());
 	executor->setEnvKey("REMOTE_ADDR", req.getClientIP());
 	executor->setEnvKeySafe("REMOTE_HOST", req.getClientIP());
+	//if POST, set post data
+	if (req.getMethod() == "POST")
+		executor->setPostData(req.getBody());
 
 	if (executor->start() != 0) {
 		delete executor;

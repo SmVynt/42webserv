@@ -681,6 +681,10 @@ void	Cluster::handleCgiRead(int cgi_fd)
 	}
 	else if (bytes == 0)
 	{
+		if (cgi_data.cgi_executor) {
+			Logger::debug("CGI process exited with status " + std::to_string(cgi_data.cgi_executor->getExitStatus()) +
+						" for client FD " + std::to_string(cgi_data.client_fd));
+		}
 		handleCgiEnd(cgi_fd);
 	}
 	else
@@ -693,6 +697,7 @@ void	Cluster::handleCgiRead(int cgi_fd)
 void Cluster::handleCgiEnd(int cgi_fd)
 {
 	FDMetadata& cgi_data = _fd_table.at(cgi_fd);
+	FDMetadata& parent_data = _fd_table.at(cgi_data.client_fd);
 	int client_fd = cgi_data.client_fd;
 
 	if (_fd_table.find(client_fd) != _fd_table.end())
@@ -700,6 +705,16 @@ void Cluster::handleCgiEnd(int cgi_fd)
 		FDMetadata& client_data = _fd_table.at(client_fd);
 
 		client_data.response = RequestHandler::parseCgiOutput(cgi_data.cgi_raw_output);
+
+		int complete_status = parent_data.cgi_executor ? parent_data.cgi_executor->isComplete() : 1;
+		(void)complete_status; // Suppress unused variable warning
+
+		if (parent_data.cgi_executor && (parent_data.cgi_executor->hasError() || parent_data.cgi_executor->getExitStatus() != 0)) {
+			Logger::error("Error code: " + CGIError::getStatusMessage(parent_data.cgi_executor->getErrorType()));
+			client_data.response.setBody(CGIError::getStatusMessage(parent_data.cgi_executor->getErrorType()));
+			client_data.response.setStatusCode(CGIError::getStatusCode(parent_data.cgi_executor->getErrorType()));
+		}
+
 		if (client_data.is_new_session)
 			client_data.response.addHeader("Set-Cookie", "session_id=" + client_data.session_id + "; Path=/");
 		client_data.response.prepare();
