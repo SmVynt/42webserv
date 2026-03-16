@@ -33,3 +33,5 @@ test/
 CGI_DEVELOPMENT.md
 cgi_test
 results
+
+*.bin

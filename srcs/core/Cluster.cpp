@@ -162,14 +162,23 @@ void	Cluster::run()
 
 
 			if (revents & POLLHUP){
+				// auto it_hup = _fd_table.find(fd);
+				// if (it_hup != _fd_table.end()){
+				// 	if (it_hup->second.type == FD_CGI_OUT)
+				// 		handleCgiEnd(fd);
+				// 	else
+				// 		closeConnection(fd);
+				// }
+				// continue;
+
 				auto it_hup = _fd_table.find(fd);
 				if (it_hup != _fd_table.end()){
-					if (it_hup->second.type == FD_CGI_OUT)
-						handleCgiEnd(fd);
-					else
+					if (it_hup->second.type == FD_CGI_OUT){
+						handleCgiRead(fd);
+					} else {
 						closeConnection(fd);
+					}
 				}
-				continue;
 			}
 		}
 	}
