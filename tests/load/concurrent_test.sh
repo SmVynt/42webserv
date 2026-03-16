@@ -64,7 +64,7 @@ stop_server() {
             wait $SERVER_PID 2>/dev/null || true
         fi
     fi
-
+}
 
 trap stop_server EXIT
 

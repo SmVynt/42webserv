@@ -17,6 +17,8 @@ int main(int argc, char **argv) {
 		// reqHardcode();
 		// reqChunkedHardcode();
 
+		Logger::setLogLevel(LogLevel::DEBUG);
+
 		Cluster webserv(servers);
 		cluster_reference() = &webserv;
 
@@ -26,6 +28,7 @@ int main(int argc, char **argv) {
 		sigemptyset(&sa.sa_mask);
 		sigaction(SIGTERM, &sa, NULL);
 		sigaction(SIGINT, &sa, NULL);
+		signal(SIGPIPE, SIG_IGN);
 
 		webserv.setupCluster();
 

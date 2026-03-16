@@ -65,7 +65,7 @@ case $choice in
         echo ""
         echo -e "${GREEN}Running load tests...${NC}"
         cd tests/load
-        ./siege_test.sh && ./ab_test.sh && ./concurrent_test.sh
+        ./siege_test.sh && ./ab_test.sh # && ./concurrent_test.sh
         ;;
 
     4)

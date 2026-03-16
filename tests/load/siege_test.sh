@@ -123,7 +123,7 @@ fi
 echo ""
 echo "Test 4: Varied URLs (mixed content)"
 siege -c 25 -t 10s -b -f "$URLS_FILE" > /tmp/siege_varied.log 2>&1
-if grep -q "Availability.*[1-9][0-9]\." /tmp/siege_varied.log; then
+if grep -q "Availability.*\\(100\\.00\\|[1-9][0-9]\\.[0-9][0-9]\\)" /tmp/siege_varied.log; then
     echo -e "${GREEN}✓${NC} Varied URL test passed"
 else
     echo -e "${RED}✗${NC} Varied URL test failed"

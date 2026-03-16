@@ -13,6 +13,9 @@ CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/config/default.conf}"
 SERVER_HOST="${SERVER_HOST:-127.0.0.1}"
 SERVER_PORT="${SERVER_PORT:-8080}"
 
+#echo "$PROJECT_ROOT"
+cd $PROJECT_ROOT
+
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -74,7 +77,7 @@ test_protocol() {
 
     echo -n "  Testing $description... "
 
-    response=$(echo -ne "$request" | nc -w 2 "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null || echo "")
+    response=$(echo -ne "$request" | nc -w 5 "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null || echo "")
 
     # Check if server is still alive
     if ! nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then

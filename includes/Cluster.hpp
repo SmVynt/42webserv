@@ -49,6 +49,7 @@ struct FDMetadata{
 
 	time_t			last_activity;	// Timestamp of the last I/O operation for timeout logic
 	int				timeout_value;	// Timeout limit
+	int				timeout_reading_value;	// Timeout limit for reading operations
 
 	int				port;			// Port that client int using
 	int				config_index;	// index in _config_data vector
@@ -62,6 +63,7 @@ struct FDMetadata{
 	CGIexecutor*	cgi_executor;	// CGI obj arr
 
 	std::string		session_id;			// Session ID for this client
+	Session*		session_ptr;		// Pointer to the session object associated with this client
 	bool			is_new_session;		// True if a new session was created for this request
 
 	bool			is_ready_to_close;	// Flag to mark the descriptor for removal from the loop

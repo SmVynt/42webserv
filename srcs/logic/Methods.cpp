@@ -413,8 +413,11 @@ Response RequestHandler::handlePost(const Request &req, const Location &loc){
 		res.setStatusCode(200);
 		res.setBody("Post data received. Size: " + std::to_string(req.getBody().size()));
 	}
-	else
-		res.setStatusCode(204);
+	else {
+		// res.setStatusCode(204);
+		res.setStatusCode(200);
+		res.setBody("Empty POST received.");
+	}
 
 	return res;
 }
