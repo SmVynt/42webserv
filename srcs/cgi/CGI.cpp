@@ -110,15 +110,17 @@ void	CGIexecutor::setupEnvironment() {
 
 void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 
-	//check if script exists and is executable
-	if (access(_script_path.c_str(), F_OK) != 0) {
-		Logger::error("CGI script not found: " + _script_path);
-		Logger::error("Exit code: " + std::to_string(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND)));
-		exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND));
-	}
-	if (access(_script_path.c_str(), X_OK) != 0) {
-		Logger::error("CGI script not executable: " + _script_path);
-		exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_EXECUTABLE));
+	//check if script exists and is executable if the method is GET. Ignore on POST
+	if (_env_vars["REQUEST_METHOD"] != "POST") {
+		if (access(_script_path.c_str(), F_OK) != 0) {
+			Logger::error("CGI script not found: " + _script_path);
+			Logger::error("Exit code: " + std::to_string(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND)));
+			exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND));
+		}
+		if (access(_script_path.c_str(), X_OK) != 0) {
+			Logger::error("CGI script not executable: " + _script_path);
+			exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_EXECUTABLE));
+		}
 	}
 
 	if (dup2(pipe_in[0], STDIN_FILENO) == -1) {
@@ -131,6 +133,7 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 		_error_type = CGIError::PIPE_FAILED;
 		exit(CGIError::getExitFromError(CGIError::PIPE_FAILED));
 	}
+
 
 	closePipes(pipe_in, pipe_out);
 
