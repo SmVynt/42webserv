@@ -29,6 +29,7 @@ RUN_EDGE_TESTS=true
 RUN_NGINX_COMPARISON=false
 RUN_STATIC_TESTS=true
 GENERATE_REPORT=true
+RUN_CGI_TESTS=true
 
 # Tool availability flags (detected at runtime)
 HAS_SIEGE=false
@@ -76,6 +77,7 @@ while [[ $# -gt 0 ]]; do
 			RUN_EDGE_TESTS=false
 			RUN_MEMORY_TESTS=false
 			RUN_STATIC_TESTS=false
+			RUN_CGI_TESTS=false
 			shift
 			;;
         -h|--help)
@@ -374,6 +376,10 @@ main() {
     # Run test categories
     if [ "$RUN_STATIC_TESTS" = true ]; then
         run_test_category "Static File Serving" "$TEST_DIR/static/serve_test.sh"
+    fi
+
+    if [ "$RUN_CGI_TESTS" = true ]; then
+        run_test_category "CGI" "$TEST_DIR/cgi/cgi_test.sh"
     fi
 
     if [ "$RUN_EDGE_TESTS" = true ]; then
