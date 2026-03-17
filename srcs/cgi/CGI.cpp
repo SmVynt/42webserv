@@ -260,7 +260,7 @@ int	CGIexecutor::isComplete() {
 	} else if (result == _child_pid) {
 		Logger::debug("Exited with code: " + std::to_string(WEXITSTATUS(status)));
 		_error_type = CGIError::getErrorFromExit(WEXITSTATUS(status));
-		Logger::debug("Mapped error type: " + CGIError::getStatusCode(_error_type));
+		Logger::debug("Mapped error type: " + std::to_string(CGIError::getStatusCode(_error_type)));
 		if (WIFEXITED(status)) {
 			_exit_status = WEXITSTATUS(status);
 		} else if (WIFSIGNALED(status)) {
