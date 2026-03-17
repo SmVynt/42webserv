@@ -424,6 +424,7 @@ int Cluster::resolveServerConfig(int port, const std::string& host){
 
 void Cluster::closeConnection(int fd)
 {
+	Logger::debug("Closing connection on FD " + std::to_string(fd));
 	auto it = _fd_table.find(fd);
 	if (it == _fd_table.end())
 		return;
