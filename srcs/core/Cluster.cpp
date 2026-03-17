@@ -262,13 +262,13 @@ bool Cluster::handleClientRequest(int fd)
 {
 	char buffer[RECV_BUFFER_SIZE];
 
-	ssize_t byte_reads = recv(fd, buffer, sizeof(buffer) - 1, 0);
+	ssize_t byte_reads = recv(fd, buffer, sizeof(buffer), 0);
 
 	if (byte_reads > 0){
 		FDMetadata& data = _fd_table.at(fd);
 		data.last_activity = time(NULL);
 
-		data.request.consume(std::string(buffer, static_cast<size_t>(byte_reads)));
+		data.request.consume(buffer, static_cast<size_t>(byte_reads));
 
 		if (!data.request.isFinished())
 			return false;
@@ -698,6 +698,8 @@ void	Cluster::handleCgiRead(int cgi_fd)
 	}
 	else
 	{
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return;
 		Logger::error("CGI read error on pipe " + std::to_string(cgi_fd));
 		handleCgiEnd(cgi_fd);
 	}
@@ -771,8 +773,15 @@ void	Cluster::handleCgiWrite(int cgi_in_fd)
 		if (pipe_data.cgi_write_offset >= body.size())
 			removeFD(cgi_in_fd);  // All written — close write end, child gets EOF on stdin
 	}
-	else if (written == 0 || written < 0)
+	else if (written == 0)
 	{
+		Logger::error("CGI write returned 0 on pipe " + std::to_string(cgi_in_fd));
+		removeFD(cgi_in_fd);
+	}
+	else
+	{
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return;
 		Logger::error("CGI write error on pipe " + std::to_string(cgi_in_fd));
 		removeFD(cgi_in_fd);
 	}

@@ -3,12 +3,10 @@
 CGIconfig::CGIconfig(const std::string &path,
 				   const std::string &uri,
 				   const std::string &query,
-				   const std::string &post,
 				   const ServerConfig &config) :
 	script_path(path),
 	request_uri(uri),
 	query_string(query),
-	post_data(post),
 	// timeout(config.client_timeout),
 	// max_output_size(config.client_max_body_size)
 	_config(config)
@@ -20,7 +18,6 @@ CGIexecutor::CGIexecutor(const CGIconfig &CGIconfig) :
 	_script_path(CGIconfig.script_path),
 	_request_uri(CGIconfig.request_uri),
 	_query_string(CGIconfig.query_string),
-	_post_data(CGIconfig.post_data),
 	_config(CGIconfig._config)
 	{
 	_error_type = CGIError::NO_ERROR;
@@ -43,10 +40,8 @@ void	CGIexecutor::setQuery(const std::string &query)
 	_env_vars["QUERY_STRING"] = query;
 }
 
-void	CGIexecutor::setPostData(const std::string &data) {
-	_post_data = data;
-	_env_vars["CONTENT_LENGTH"] = std::to_string(data.length());
-	setEnvKey("CONTENT_TYPE", "application/x-www-form-urlencoded");
+void	CGIexecutor::setPostDataSize(size_t data_size) {
+	_env_vars["CONTENT_LENGTH"] = std::to_string(data_size);
 	_env_vars["REQUEST_METHOD"] = "POST";
 };
 

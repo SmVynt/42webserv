@@ -25,7 +25,7 @@
 
 class CGIexecutor;
 // Default value
-static const size_t			RECV_BUFFER_SIZE		= 4096;
+static const size_t			RECV_BUFFER_SIZE		= 65536;
 
 enum FDType{
 	FD_LISTENER,	// Listening socket: accepts new incoming connections

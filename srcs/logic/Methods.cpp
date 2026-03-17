@@ -331,7 +331,7 @@ CGIexecutor *RequestHandler::handleCgi(const Request &req, const Location &loc, 
 		script_path = loc.root + script_uri.substr(loc.path.length());
 	}
 
-	CGIconfig cgi_config(script_path, script_uri, query_string, req.getBody(), config);
+	CGIconfig cgi_config(script_path, script_uri, query_string, config);
 	CGIexecutor *executor = new CGIexecutor(cgi_config);
 
 	std::map<std::string, std::string> req_headers = req.getHeaders();
@@ -342,8 +342,12 @@ CGIexecutor *RequestHandler::handleCgi(const Request &req, const Location &loc, 
 	executor->setEnvKey("REMOTE_ADDR", req.getClientIP());
 	executor->setEnvKeySafe("REMOTE_HOST", req.getClientIP());
 	//if POST, set post data
-	if (req.getMethod() == "POST")
-		executor->setPostData(req.getBody());
+	if (req.getMethod() == "POST") {
+		executor->setPostDataSize(req.getBody().size());
+		std::string content_type = req.getHeaders("content-type");
+		if (!content_type.empty())
+			executor->setEnvKey("CONTENT_TYPE", content_type);
+	}
 
 	if (executor->start() != 0) {
 		delete executor;
