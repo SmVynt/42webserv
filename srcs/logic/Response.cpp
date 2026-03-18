@@ -38,6 +38,7 @@ std::map<int, std::string>	Response::_initStatusMessages(){
 	m[500] = "Internal Server Error";
 	m[501] = "Not Implemented";
 	m[502] = "Bad Gateway";
+	m[504] = "Gateway Timeout";
 	m[505] = "HTTP Version Not Supported";
 	return m;
 }
