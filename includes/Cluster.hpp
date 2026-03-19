@@ -96,6 +96,9 @@ class Cluster {
 		// Utils for pollfds management and metadata
 		void addFD(int fd, FDType type, int client_ref, int timeout);
 		void removeFD(int fd);
+		// Used for POLLNVAL cleanup: avoid calling close() again on an fd number
+		// that the kernel already considers invalid.
+		void removeFDNoClose(int fd);
 		void updateActivity(int fd);
 		void handleTimeout();
 		void resetConnection(int fd);
@@ -103,6 +106,7 @@ class Cluster {
 		void handleCgiRead(int cgi_fd);
 		void handleCgiEnd(int cgi_fd);
 		void handleCgiWrite(int cgi_in_fd);
+		std::string		fd_type(FDType t);
 
 
 		// Response

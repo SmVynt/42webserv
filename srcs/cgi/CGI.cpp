@@ -142,6 +142,7 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	envp.push_back(nullptr);
 
 	// Determine interpreter based on extension
+	Logger::info("Attempting to execute CGI script: " + _script_path);
 	const char* argv[3];
 	std::string cgi_ext = _script_path.substr(_script_path.find_last_of('.'));
 	if (cgi_ext == ".sh") {
@@ -190,6 +191,8 @@ int	CGIexecutor::start() {
 
 	_pipe_in_fd = pipe_in[1];
 	_pipe_out_fd = pipe_out[0];
+	Logger::info("CGI executor: pipe_in_fd=" + std::to_string(_pipe_in_fd)
+					+ " pipe_out_fd=" + std::to_string(_pipe_out_fd));
 	_child_pid = fork();
 	if (_child_pid == -1) {
 		Logger::error("fork() failed");

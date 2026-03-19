@@ -110,12 +110,45 @@ void	Cluster::run()
 		handleTimeout();
 
 		for (const auto& [fd, revents] : events){
-			if (_fd_table.find(fd) == _fd_table.end())
+			auto meta_it = _fd_table.find(fd);
+			if (meta_it == _fd_table.end())
+			{
+				// Make stale-pollfd cleanup robust even if metadata is gone already.
+				if (revents & (POLLNVAL))
+				{
+					int fcntl_res = fcntl(fd, F_GETFD);
+					int fcntl_errno = (fcntl_res == -1) ? errno : 0;
+					Logger::warning("Poll Nvalid on FD " + std::to_string(fd)
+									+ " (no metadata)"
+									+ " fcntl_errno=" + std::to_string(fcntl_errno));
+					// Remove from pollfds only; fd number might have been reused.
+					for (auto itp = _pollfds.begin(); itp != _pollfds.end(); )
+					{
+						if (itp->fd == fd)
+							itp = _pollfds.erase(itp);
+						else
+							++itp;
+					}
+				}
 				continue;
+			}
 
-			if (revents & (POLLERR | POLLNVAL)){
+			if (revents & (POLLERR)){
 				Logger::warning("Poll error on FD " + std::to_string(fd));
 				closeConnection(fd);
+				continue;
+			}
+			if (revents & (POLLNVAL)){
+				FDMetadata& meta = meta_it->second;
+				int fcntl_res = fcntl(fd, F_GETFD);
+				int fcntl_errno = (fcntl_res == -1) ? errno : 0;
+				Logger::warning("Poll Nvalid on FD " + std::to_string(fd)
+								+ " type=" + fd_type(meta.type)
+								+ " client_fd=" + std::to_string(meta.client_fd)
+								+ " fcntl_errno=" + std::to_string(fcntl_errno));
+				// POLLNVAL means the fd number is invalid in the kernel.
+				// It is not a CGI timeout; only synchronize our poll bookkeeping.
+				removeFDNoClose(fd);
 				continue;
 			}
 			updateActivity(fd);
@@ -426,13 +459,41 @@ void Cluster::closeConnection(int fd)
 {
 	auto it = _fd_table.find(fd);
 	if (it == _fd_table.end())
-		return;
-
-	if (it->second.type == FD_CGI_OUT)
 	{
-		// CGI timed out: clean up executor and send 504 to client
+		// POLLNVAL/other errors can happen if an FD is still present in pollfds[]
+		// but has already been closed/removed from our metadata.
+		// Make cleanup robust by removing it from pollfds anyway (do NOT close;
+		// the fd number could have been reused by the kernel).
+		for (auto itp = _pollfds.begin(); itp != _pollfds.end(); )
+		{
+			if (itp->fd == fd)
+				itp = _pollfds.erase(itp);
+			else
+				++itp;
+		}
+		return;
+	}
+
+	if (it->second.type == FD_CGI_OUT || it->second.type == FD_CGI_IN)
+	{
+		// CGI timed out: clean up executor and send 504 to client.
+		// Handle both pipe ends (CGI_IN/CGI_OUT) because the other end may
+		// get closed by the executor later, leaving stale pollfds otherwise.
 		int client_fd = it->second.client_fd;
-		removeFD(fd);
+		// The CGI executor cleanup closes both pipe ends.
+		// If we only remove FD_CGI_OUT here, FD_CGI_IN can remain in pollfd[]
+		// and produce POLLNVAL on the next event loop tick.
+		std::vector<int> orphan_pipes;
+		for (const auto& [pfd, meta] : _fd_table)
+		{
+			if ((meta.type == FD_CGI_OUT || meta.type == FD_CGI_IN) && meta.client_fd == client_fd)
+				orphan_pipes.push_back(pfd);
+		}
+		for (int p : orphan_pipes){
+			Logger::info("Cleaning up orphaned CGI pipe FD " + std::to_string(p));
+			removeFD(p);
+		}
+
 		if (_fd_table.count(client_fd))
 		{
 			FDMetadata& cl = _fd_table.at(client_fd);
@@ -463,14 +524,18 @@ void Cluster::closeConnection(int fd)
 				if ((meta.type == FD_CGI_OUT || meta.type == FD_CGI_IN) && meta.client_fd == fd)
 					orphan_pipes.push_back(pfd);
 			}
-			for (int p : orphan_pipes)
+			for (int p : orphan_pipes){
+				Logger::info("Cleaning up orphaned CGI pipe FD " + std::to_string(p));
 				removeFD(p);
+			}
 		}
 		if (!it->second.session_id.empty())
 			_active_sessions.erase(it->second.session_id);
+		Logger::info("Closing connection [FD " + std::to_string(fd) + "]");
 		removeFD(fd);
 	}
 	Logger::info("[Cluster] Connection closed on [FD " + std::to_string(fd) + "]");
+	std::cout << "Closed cluster connection: FD " << fd << std::endl;
 }
 
 void Cluster::updatePollEvents(int fd, short events)
@@ -569,7 +634,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.client_fd = client_ref;
 	metadata.last_activity = time(NULL);
 	metadata.timeout_value = timeout;
-	metadata.timeout_reading_value = 3;
+	metadata.timeout_reading_value = 10;
 	metadata.is_ready_to_close = false;
 	metadata.cgi_executor = nullptr;
 	metadata.session_ptr = nullptr;
@@ -580,18 +645,43 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	_fd_table[fd] = metadata;
 }
 
+std::string	Cluster::fd_type(FDType t){
+	switch (t){
+		case FD_LISTENER: return "LISTENER";
+		case FD_CLIENT: return "CLIENT";
+		case FD_CGI_IN: return "CGI_IN";
+		case FD_CGI_OUT: return "CGI_OUT";
+		case FD_FILE: return "FILE";
+		default: return "UNKNOWN";
+	}
+}
+
 void Cluster::removeFD(int fd)
 {
-	for (auto it = _pollfds.begin(); it != _pollfds.end(); ++it){
+	// Be robust to duplicates: remove all matching pollfd entries.
+	for (auto it = _pollfds.begin(); it != _pollfds.end(); ){
 		if (it->fd == fd){
-			_pollfds.erase(it);
-			break;
+			FDType type = _fd_table.find(fd)->second.type;
+			Logger::info("FD " + std::to_string(fd) + " closed. Type: " + fd_type(type));
+			it = _pollfds.erase(it);
 		}
+		else
+			++it;
 	}
 	if (fd >= 0)
 		close(fd);
 	_fd_table.erase(fd);
+}
 
+void Cluster::removeFDNoClose(int fd)
+{
+	for (auto it = _pollfds.begin(); it != _pollfds.end(); ){
+		if (it->fd == fd)
+			it = _pollfds.erase(it);
+		else
+			++it;
+	}
+	_fd_table.erase(fd);
 }
 
 void Cluster::updateActivity(int fd)
@@ -672,6 +762,7 @@ void	Cluster::handleCgiRead(int cgi_fd)
 
 	if (_fd_table.find(cgi_data.client_fd) == _fd_table.end())
 	{
+		Logger::warning("CGI output FD " + std::to_string(cgi_fd) + " has no valid client reference");
 		removeFD(cgi_fd);
 		return;
 	}
@@ -739,7 +830,18 @@ void Cluster::handleCgiEnd(int cgi_fd)
 			client_data.cgi_executor = nullptr;
 		}
 	}
-	removeFD(cgi_fd);
+
+	// Deleting the CGI executor can close *both* CGI pipe ends.
+	// If only FD_CGI_OUT was removed, FD_CGI_IN may still be present in _pollfds
+	// and cause POLLNVAL on the next poll().
+	std::vector<int> cgi_pipes;
+	for (const auto& [pfd, meta] : _fd_table)
+	{
+		if ((meta.type == FD_CGI_OUT || meta.type == FD_CGI_IN) && meta.client_fd == client_fd)
+			cgi_pipes.push_back(pfd);
+	}
+	for (int p : cgi_pipes)
+		removeFD(p);
 	Logger::info("CGI processing complete for client FD " + std::to_string(client_fd));
 }
 
@@ -750,6 +852,7 @@ void	Cluster::handleCgiWrite(int cgi_in_fd)
 
 	if (_fd_table.find(client_fd) == _fd_table.end())
 	{
+		Logger::warning("CGI input FD " + std::to_string(cgi_in_fd) + " has no valid client reference for writing");
 		removeFD(cgi_in_fd);
 		return;
 	}
@@ -757,6 +860,7 @@ void	Cluster::handleCgiWrite(int cgi_in_fd)
 	const std::string& body = _fd_table.at(client_fd).request.getBody();
 	if (body.empty() || pipe_data.cgi_write_offset >= body.size())
 	{
+		Logger::warning("CGI input FD " + std::to_string(cgi_in_fd) + " has no body to write or already fully written");
 		removeFD(cgi_in_fd);
 		return;
 	}
@@ -770,19 +874,27 @@ void	Cluster::handleCgiWrite(int cgi_in_fd)
 		Session* session = pipe_data.session_ptr;
 		if (session)
 			session->touch();
-		if (pipe_data.cgi_write_offset >= body.size())
+		if (pipe_data.cgi_write_offset >= body.size()){
+			Logger::info("Finished writing POST body to CGI for FD " + std::to_string(cgi_in_fd));
 			removeFD(cgi_in_fd);  // All written — close write end, child gets EOF on stdin
+		}
 	}
 	else if (written == 0)
 	{
-		Logger::error("CGI write returned 0 on pipe " + std::to_string(cgi_in_fd));
+		Logger::error("CGI write returned 0 on pipe " + std::to_string(cgi_in_fd)
+						+ " (offset=" + std::to_string(pipe_data.cgi_write_offset)
+						+ "/" + std::to_string(body.size()) + ")");
 		removeFD(cgi_in_fd);
 	}
 	else
 	{
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			return;
-		Logger::error("CGI write error on pipe " + std::to_string(cgi_in_fd));
+		Logger::error("CGI write error on pipe " + std::to_string(cgi_in_fd)
+						+ " errno=" + std::to_string(errno)
+						+ " (" + std::string(strerror(errno)) + ")"
+						+ " (offset=" + std::to_string(pipe_data.cgi_write_offset)
+						+ "/" + std::to_string(body.size()) + ")");
 		removeFD(cgi_in_fd);
 	}
 }
