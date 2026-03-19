@@ -143,6 +143,7 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 
 	// Determine interpreter based on extension
 	Logger::info("Attempting to execute CGI script: " + _script_path);
+	std::cout << "Child process started for CGI script: " << _script_path << std::endl;
 	const char* argv[3];
 	std::string cgi_ext = _script_path.substr(_script_path.find_last_of('.'));
 	if (cgi_ext == ".sh") {

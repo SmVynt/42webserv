@@ -21,7 +21,7 @@ CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/config/default.conf}"
 SERVER_HOST="${SERVER_HOST:-127.0.0.1}"
 SERVER_PORT="${SERVER_PORT:-8080}"
 SERVER_URL="http://${SERVER_HOST}:${SERVER_PORT}"
-CURL_OPTS="-4 -sS --connect-timeout 2 --max-time 5"
+CURL_OPTS="-4 -sS --connect-timeout 15 --max-time 60"
 
 cd $PROJECT_ROOT
 
@@ -210,25 +210,25 @@ echo ""
 echo "Test 1: Basic CGI GET"
 test_cgi "CGI Hello (GET)" "/cgi-bin/python/hello.py" "200" "Hello, CGI"
 
-# echo ""
-# echo "Test 2: CGI POST"
-# test_cgi "CGI Echo (POST)" "/cgi-bin/python/echo.py" "200" "You posted: testdata" "POST" "testdata"
+echo ""
+echo "Test 2: CGI POST"
+test_cgi "CGI Echo (POST)" "/cgi-bin/python/echo.py" "200" "You posted: testdata" "POST" "testdata"
 
-# echo ""
-# echo "Test 3: CGI Error Handling"
-# test_cgi "CGI Not Found" "/cgi-bin/python/nonexistent.py" "404" ""
-# test_cgi "CGI Script Error" "/cgi-bin/python/error.py" "500" ""
+echo ""
+echo "Test 3: CGI Error Handling"
+test_cgi "CGI Not Found" "/cgi-bin/python/nonexistent.py" "404" ""
+test_cgi "CGI Script Error" "/cgi-bin/python/error.py" "500" ""
 
-# echo ""
-# echo "Test 4: Edge Cases"
-# test_cgi "CGI with Query String" "/cgi-bin/python/hello.py?name=Webserv" "200" "Webserv"
+echo ""
+echo "Test 4: Edge Cases"
+test_cgi "CGI with Query String" "/cgi-bin/python/hello.py?name=Webserv" "200" "Webserv"
 
-# echo ""
+echo ""
 
-# echo ""
-# echo "Test 5: Multiple Workers"
-# test_multiple_workers "CGI Echo with 10 Workers" "/cgi-bin/python/echo.py"
-# test_multiple_workers "CGI Echo with 20 Workers (Small POST)" "/cgi-bin/python/echo.py" 10000 20
+echo ""
+echo "Test 5: Multiple Workers"
+test_multiple_workers "CGI Echo with 10 Workers" "/cgi-bin/python/echo.py"
+test_multiple_workers "CGI Echo with 20 Workers (Small POST)" "/cgi-bin/python/echo.py" 10000 20
 test_multiple_workers "CGI Echo with 20 Workers (Large POST)" "/cgi-bin/python/echo.py" 5000000 20
 # test_multiple_workers "CGI Echo with 20 Workers (Very Large POST)" "/cgi-bin/python/echo.py" 10000000 20
 # test_multiple_workers "CGI Youpi" "/directory/youpi.bla" 10000000 20

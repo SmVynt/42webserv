@@ -425,7 +425,7 @@ bool Cluster::handleClientRequest(int fd)
 		return false;
 	}
 	if (byte_reads == 0){
-		Logger::info("Client closed connection [FD " + std::to_string(fd) + "]");
+		Logger::info("Nothing to read in [FD " + std::to_string(fd) + "]");
 		closeConnection(fd);
 		return true;
 	}
@@ -534,7 +534,6 @@ void Cluster::closeConnection(int fd)
 		Logger::info("Closing connection [FD " + std::to_string(fd) + "]");
 		removeFD(fd);
 	}
-	Logger::info("[Cluster] Connection closed on [FD " + std::to_string(fd) + "]");
 	std::cout << "Closed cluster connection: FD " << fd << std::endl;
 }
 
@@ -634,7 +633,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.client_fd = client_ref;
 	metadata.last_activity = time(NULL);
 	metadata.timeout_value = timeout;
-	metadata.timeout_reading_value = 10;
+	metadata.timeout_reading_value = 3;
 	metadata.is_ready_to_close = false;
 	metadata.cgi_executor = nullptr;
 	metadata.session_ptr = nullptr;
@@ -845,27 +844,27 @@ void Cluster::handleCgiEnd(int cgi_fd)
 	Logger::info("CGI processing complete for client FD " + std::to_string(client_fd));
 }
 
-void	Cluster::handleCgiWrite(int cgi_in_fd)
+void	Cluster::handleCgiWrite(int cgi_out_fd)
 {
-	FDMetadata& pipe_data = _fd_table.at(cgi_in_fd);
+	FDMetadata& pipe_data = _fd_table.at(cgi_out_fd);
 	int client_fd = pipe_data.client_fd;
 
 	if (_fd_table.find(client_fd) == _fd_table.end())
 	{
-		Logger::warning("CGI input FD " + std::to_string(cgi_in_fd) + " has no valid client reference for writing");
-		removeFD(cgi_in_fd);
+		Logger::warning("CGI input FD " + std::to_string(cgi_out_fd) + " has no valid client reference for writing");
+		removeFD(cgi_out_fd);
 		return;
 	}
 
 	const std::string& body = _fd_table.at(client_fd).request.getBody();
 	if (body.empty() || pipe_data.cgi_write_offset >= body.size())
 	{
-		Logger::warning("CGI input FD " + std::to_string(cgi_in_fd) + " has no body to write or already fully written");
-		removeFD(cgi_in_fd);
+		Logger::warning("CGI input FD " + std::to_string(cgi_out_fd) + " has no body to write or already fully written");
+		removeFD(cgi_out_fd);
 		return;
 	}
 
-	ssize_t written = write(cgi_in_fd,
+	ssize_t written = write(cgi_out_fd,
 						body.c_str() + pipe_data.cgi_write_offset,
 						body.size() - pipe_data.cgi_write_offset);
 	if (written > 0)
@@ -875,27 +874,28 @@ void	Cluster::handleCgiWrite(int cgi_in_fd)
 		if (session)
 			session->touch();
 		if (pipe_data.cgi_write_offset >= body.size()){
-			Logger::info("Finished writing POST body to CGI for FD " + std::to_string(cgi_in_fd));
-			removeFD(cgi_in_fd);  // All written — close write end, child gets EOF on stdin
+			Logger::info("Finished writing POST body to CGI for FD " + std::to_string(cgi_out_fd));
+			std::cout << "Finished writing POST body to CGI for FD " << cgi_out_fd << std::endl;
+			removeFD(cgi_out_fd);  // All written — close write end, child gets EOF on stdin
 		}
 	}
 	else if (written == 0)
 	{
-		Logger::error("CGI write returned 0 on pipe " + std::to_string(cgi_in_fd)
+		Logger::error("CGI write returned 0 on pipe " + std::to_string(cgi_out_fd)
 						+ " (offset=" + std::to_string(pipe_data.cgi_write_offset)
 						+ "/" + std::to_string(body.size()) + ")");
-		removeFD(cgi_in_fd);
+		removeFD(cgi_out_fd);
 	}
 	else
 	{
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			return;
-		Logger::error("CGI write error on pipe " + std::to_string(cgi_in_fd)
+		Logger::error("CGI write error on pipe " + std::to_string(cgi_out_fd)
 						+ " errno=" + std::to_string(errno)
 						+ " (" + std::string(strerror(errno)) + ")"
 						+ " (offset=" + std::to_string(pipe_data.cgi_write_offset)
 						+ "/" + std::to_string(body.size()) + ")");
-		removeFD(cgi_in_fd);
+		removeFD(cgi_out_fd);
 	}
 }
 
