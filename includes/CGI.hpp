@@ -74,6 +74,7 @@ class CGIexecutor {
 		int			getExitStatus() const;
 		std::string	getOutput() const;
 		void		killChildProcess();
+		void		detachPipeFd(int fd);
 
 		CGIError::Type	getErrorType() const;
 		bool			hasError() const;

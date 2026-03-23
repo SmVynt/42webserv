@@ -131,7 +131,12 @@ Response RequestHandler::handleGet(const Request &req, const Location &loc) {
 	if (!rel_uri.empty() && rel_uri[0] == '/')
 		rel_uri.erase(0, 1);
 
-	std::filesystem::path full_path = root_path / rel_uri;
+	std::filesystem::path full_path = std::filesystem::weakly_canonical(root_path / rel_uri);
+	std::filesystem::path root_canonical = std::filesystem::weakly_canonical(root_path);
+	if (full_path.string().find(root_canonical.string()) != 0) {
+		res.setStatusCode(403);
+		return res;
+	}
 
 	if (!std::filesystem::exists(full_path)) {
 		res.setStatusCode(404);
@@ -439,7 +444,12 @@ Response RequestHandler::handleDelete(const Request &req, const Location &loc){
 	if (!rel_uri.empty() && rel_uri[0] == '/')
 		rel_uri.erase(0, 1);
 
-	std::filesystem::path full_path = (root_path / rel_uri).lexically_normal();
+	std::filesystem::path full_path = std::filesystem::weakly_canonical(root_path / rel_uri);
+	std::filesystem::path root_canonical = std::filesystem::weakly_canonical(root_path);
+	if (full_path.string().find(root_canonical.string()) != 0) {
+		res.setStatusCode(403);
+		return res;
+	}
 
 	if (!std::filesystem::exists(full_path)){
 		res.setStatusCode(404);

@@ -94,7 +94,7 @@ test-quick: all
 
 test-cgi:
 	@echo "$(YELLOW)Running CGI tests...$(RESET)"
-	@cd tests && bash test_cgi.sh
+	@cd tests/cgi && bash cgi_test.sh
 	@echo "$(GREEN)CGI tests completed!$(RESET)"
 
 .PHONY: all clean fclean re test test-load test-memory test-edge test-static test-nginx test-quick test-cgi

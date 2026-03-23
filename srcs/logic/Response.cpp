@@ -1,6 +1,6 @@
 #include "Response.hpp"
 
-Response::Response(): _version("HTTP/1.1"), _status_code(200) {}
+Response::Response(): _version("HTTP/1.1"), _status_code(200), _bytes_sent(0) {}
 
 Response::~Response() {}
 
@@ -46,7 +46,7 @@ std::map<int, std::string>	Response::_initStatusMessages(){
 std::string	Response::build(){
 	std::stringstream res;
 
-	res << _version << " " << _status_code << " " << _status_messages.at(_status_code) << "\r\n";
+	res << _version << " " << _status_code << " " << getStatusMessage(_status_code) << "\r\n";
 	if (_headers.find("Content-Length") == _headers.end()){
 		addHeader("Content-Length", std::to_string(_body.size()));
 	}

@@ -102,6 +102,11 @@ void	Request::consume(const char *new_chunk, size_t chunk_size){
 				_error_code = 400;
 				break;
 			}
+			if (_max_body_size > 0 && _content_length > _max_body_size) {
+				_state = ERROR;
+				_error_code = 413;
+				break;
+			}
 
 			size_t remaining = _content_length - _body.size();
 			size_t to_copy = std::min(remaining, _raw_storage.size());
@@ -138,6 +143,11 @@ void	Request::consume(const char *new_chunk, size_t chunk_size){
 			}
 			_body.append(_raw_storage.substr(0, _current_chunk_size));
 			_raw_storage.erase(0, _current_chunk_size + 2);
+			if (_max_body_size > 0 && _body.size() > _max_body_size) {
+				_state = ERROR;
+				_error_code = 413;
+				break;
+			}
 			_state = CHUNK_SIZE;
 		}
 		else
@@ -185,7 +195,7 @@ void	Request::parseRequestLine(const std::string &line){
 	}
 	if (method != "GET" && method != "POST" && method != "DELETE" && method != "HEAD"){
 		_state = ERROR;
-		_error_code = 405;
+		_error_code = 501;
 		return;
 	}
 	if (version != "HTTP/1.1"){
@@ -195,11 +205,6 @@ void	Request::parseRequestLine(const std::string &line){
 	}
 
 	_method = method;
-	if (path.length() > 255) {
-		_state = ERROR;
-		_error_code = 414;
-		return;
-	}
 	_path = urlDecode(path);
 	_http_version = version;
 

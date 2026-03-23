@@ -96,6 +96,7 @@ class Cluster {
 		// Utils for pollfds management and metadata
 		void addFD(int fd, FDType type, int client_ref, int timeout);
 		void removeFD(int fd);
+		void removeFDNoClose(int fd);
 		void updateActivity(int fd);
 		void handleTimeout();
 		void resetConnection(int fd);
