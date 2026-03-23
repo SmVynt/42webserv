@@ -95,6 +95,11 @@ void	Cluster::run()
 	std::vector<std::pair<int, short>> events;
 
 	while (!_shutdown){
+		_pollfds.erase(
+			std::remove_if(_pollfds.begin(), _pollfds.end(),
+				[](const pollfd& p){ return p.fd < 0; }),
+			_pollfds.end());
+
 		int ret = poll(_pollfds.data(), _pollfds.size(), 1000);
 		if (ret < 0){
 			if (errno == EINTR)
@@ -104,7 +109,7 @@ void	Cluster::run()
 
 		events.clear();
 		for (const auto& pfd : _pollfds){
-			if (pfd.revents != 0)
+			if (pfd.fd >= 0 && pfd.revents != 0)
 				events.emplace_back(pfd.fd, pfd.revents);
 		}
 		handleTimeout();
@@ -115,13 +120,9 @@ void	Cluster::run()
 			{
 				if (revents & POLLNVAL)
 				{
-					for (auto itp = _pollfds.begin(); itp != _pollfds.end(); )
-					{
-						if (itp->fd == fd)
-							itp = _pollfds.erase(itp);
-						else
-							++itp;
-					}
+					for (auto& p : _pollfds)
+						if (p.fd == fd)
+							p.fd = -1;
 				}
 				continue;
 			}
@@ -451,13 +452,9 @@ void Cluster::closeConnection(int fd)
 	auto it = _fd_table.find(fd);
 	if (it == _fd_table.end())
 	{
-		for (auto itp = _pollfds.begin(); itp != _pollfds.end(); )
-		{
-			if (itp->fd == fd)
-				itp = _pollfds.erase(itp);
-			else
-				++itp;
-		}
+		for (auto& pfd : _pollfds)
+			if (pfd.fd == fd)
+				pfd.fd = -1;
 		return;
 	}
 
@@ -638,12 +635,9 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 
 void Cluster::removeFD(int fd)
 {
-	for (auto it = _pollfds.begin(); it != _pollfds.end(); ){
-		if (it->fd == fd)
-			it = _pollfds.erase(it);
-		else
-			++it;
-	}
+	for (auto& pfd : _pollfds)
+		if (pfd.fd == fd)
+			pfd.fd = -1;
 	if (fd >= 0)
 		close(fd);
 	_fd_table.erase(fd);
@@ -651,12 +645,9 @@ void Cluster::removeFD(int fd)
 
 void Cluster::removeFDNoClose(int fd)
 {
-	for (auto it = _pollfds.begin(); it != _pollfds.end(); ){
-		if (it->fd == fd)
-			it = _pollfds.erase(it);
-		else
-			++it;
-	}
+	for (auto& pfd : _pollfds)
+		if (pfd.fd == fd)
+			pfd.fd = -1;
 	_fd_table.erase(fd);
 }
 
