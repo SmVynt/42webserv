@@ -77,7 +77,7 @@ test_protocol() {
 
     echo -n "  Testing $description... "
 
-    response=$(echo -ne "$request" | nc -w 5 "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null || echo "")
+    response=$(echo -ne "$request" | nc -w 1 "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null || echo "")
 
     # Check if server is still alive
     if ! nc -z "$SERVER_HOST" "$SERVER_PORT" 2>/dev/null; then
@@ -136,7 +136,7 @@ test_protocol "POST / HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\
 echo ""
 echo "Test 4: Content-Length handling"
 test_protocol "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\n\r\nhello" "Correct Content-Length"
-test_protocol "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10\r\n\r\nhello" "Body shorter than CL"
+test_protocol "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\n\r\nhello world" "Body longer than CL"
 test_protocol "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n" "Zero Content-Length"
 
 # Test 5: Host header variations
@@ -151,8 +151,8 @@ test_protocol "GET / HTTP/1.1\r\nHost: \r\n\r\n" "Empty Host value"
 # Test 6: Expect header
 echo ""
 echo "Test 6: Expect header handling"
-test_protocol "POST / HTTP/1.1\r\nHost: localhost\r\nExpect: 100-continue\r\nContent-Length: 5\r\n\r\n" "Expect: 100-continue"
-test_protocol "POST / HTTP/1.1\r\nHost: localhost\r\nExpect: something-else\r\nContent-Length: 5\r\n\r\n" "Invalid Expect value"
+test_protocol "POST / HTTP/1.1\r\nHost: localhost\r\nExpect: 100-continue\r\nContent-Length: 5\r\n\r\nhello" "Expect: 100-continue" "200"
+test_protocol "POST / HTTP/1.1\r\nHost: localhost\r\nExpect: something-else\r\nContent-Length: 5\r\n\r\nhello" "Invalid Expect value" "417"
 
 # Test 7: Accept headers
 echo ""

@@ -3,7 +3,7 @@
 # CGI Script Tests
 # Tests server's ability to execute and return CGI responses correctly
 
-set -euo pipefail
+set -uo pipefail
 
 # Configuration (absolute paths)
 # PROJECT_ROOT="/root/projects/webserv"
@@ -37,7 +37,7 @@ start_server() {
         echo "Starting server..."
         local start_dir="$PWD"
         cd "$PROJECT_ROOT"
-        "$SERVER_BIN" "$CONFIG_FILE" &>/dev/null &
+        "$SERVER_BIN" "$CONFIG_FILE" &>server.log &
         SERVER_PID=$!
         cd "$start_dir"
         sleep 1
@@ -147,6 +147,59 @@ test_cgi() {
     fi
 }
 
+test_multiple_workers() {
+	local description="$1"
+	local path="$2"
+	local post_size="${3:-1000000}"  # Default 1 MB
+	local workers="${4:-10}"
+	local repeats="${5:-3}"
+
+	echo -n "  Testing $description with $workers workers..."
+	echo ""
+
+    local tmpdir=$(mktemp -d)
+    local pids=()
+    for i in $(seq 1 $workers); do
+        (
+            echo "    Worker $i: Sending POST request with $post_size bytes..."
+            dd if=/dev/urandom bs=1 count="$post_size" 2>/dev/null | \
+            curl $CURL_OPTS -X POST --data-binary @- -w "\n%{http_code} %{size_download}" "$SERVER_URL$path" > "$tmpdir/worker_$i.out" 2>/dev/null
+        ) &
+        pids+=("$!")
+		sleep 0.05  # Stagger worker start times slightly
+    done
+
+    wait "${pids[@]}"
+
+    # Print return codes and sizes
+    for i in $(seq 1 $workers); do
+        code=$(tail -n 1 "$tmpdir/worker_$i.out" | awk '{print $1}')
+        sz=$(tail -n 1 "$tmpdir/worker_$i.out" | awk '{print $2}')
+        echo "    Worker $i: HTTP $code, Size $sz"
+    done
+
+    # Check results
+    local all_same=1
+    local ref_size=$(tail -n 1 "$tmpdir/worker_1.out" | awk '{print $2}')
+    for i in $(seq 2 $workers); do
+        sz=$(tail -n 1 "$tmpdir/worker_$i.out" | awk '{print $2}')
+        if [ "$sz" != "$ref_size" ]; then
+            all_same=0
+            break
+        fi
+    done
+
+    rm -rf "$tmpdir"
+
+    if [ $all_same -eq 1 ]; then
+        echo -e "${GREEN}✓${NC} (All responses same size: $ref_size)"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "${RED}✗${NC} (Response sizes differ)"
+        FAILED=$((FAILED + 1))
+    fi
+}
+
 echo "=========================================="
 echo "CGI Script Tests"
 echo "=========================================="
@@ -170,24 +223,17 @@ echo ""
 echo "Test 4: Edge Cases"
 test_cgi "CGI with Query String" "/cgi-bin/python/hello.py?name=Webserv" "200" "Webserv"
 
-# cgi_processes.push_back(runCGI("cgi-bin/python/test.py", default_config));
-# cgi_processes.push_back(runCGI("cgi-bin/python/test.py", "name=Alice&age=25", default_config));
-# cgi_processes.push_back(runCGI("cgi-bin/python/test.py", "", "username=testuser&password=secret123", default_config));
-# //php
-# cgi_processes.push_back(runCGI("cgi-bin/php/test.php", default_config));
-# cgi_processes.push_back(runCGI("cgi-bin/php/test.php", "name=Bob&city=Paris", default_config));
-# cgi_processes.push_back(runCGI("cgi-bin/php/test.php", "", "email=test@example.com&message=Hello", default_config));
-# // shell
-# cgi_processes.push_back(runCGI("cgi-bin/shell/test.sh", default_config));
-# // timeout tests
-# default_config.client_timeout = 2;
-# cgi_processes.push_back(runCGI("cgi-bin/python/slow.py", "5", "", default_config)); // should timeout
-# default_config.client_timeout = 5;
-# cgi_processes.push_back(runCGI("cgi-bin/python/slow.py", "2", "", default_config)); // should complete
-# default_config.client_timeout = 3;
-# cgi_processes.push_back(runCGI("cgi-bin/python/infinite.py", "", "", default_config)); // should timeout
+echo ""
 
 echo ""
+echo "Test 5: Multiple Workers"
+test_multiple_workers "CGI Echo with 10 Workers" "/cgi-bin/python/echo.py"
+test_multiple_workers "CGI Echo with 20 Workers (Small POST)" "/cgi-bin/python/echo.py" 10000 20
+# test_multiple_workers "CGI Echo with 100 Workers" "/cgi-bin/python/echo.py" 1000000 100
+test_multiple_workers "CGI Echo with 20 Workers (Large POST)" "/cgi-bin/python/echo.py" 5000000 20
+test_multiple_workers "CGI Echo with 20 Workers (Very Large POST)" "/cgi-bin/python/echo.py" 10000000 20
+test_multiple_workers "CGI Youpi" "/directory/youpi.bla" 10000000 20
+
 echo "=========================================="
 echo "Summary"
 echo "=========================================="

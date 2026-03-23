@@ -17,6 +17,7 @@ private:
 	int			_error_code;
 
 	unsigned long	_max_body_size;
+	size_t			_content_length;
 	size_t			_current_chunk_size;
 
 	std::string	_method;
@@ -25,12 +26,13 @@ private:
 	std::string	_body;
 	std::map<std::string, std::string>	_headers;
 	std::string	_client_ip;
-
+	bool		_expect_continue;
 
 public:
 	Request();
 	~Request();
 
+	void	consume(const char *new_chunk, size_t chunk_size);
 	void	consume(const std::string &new_chunk);
 	void	parseRequestLine(const std::string &line);
 	void	parseHeaders(const std::string &line);
@@ -38,13 +40,14 @@ public:
 
 	bool	isFinished() const;
 	bool	shouldKeepAlive() const;
+	bool	needsContinue();
 
 	void	setMaxBodySize(const unsigned long &num);
 
 	std::string	getMethod() const;
 	std::string	getPath() const;
 	std::string	getHttpVersion() const;
-	std::string	getBody() const;
+	const std::string	&getBody() const;
 	std::string	getClientIP() const;
 	void		setClientIP(const std::string &ip);
 	std::map<std::string, std::string>	getHeaders() const;

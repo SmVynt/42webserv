@@ -2,7 +2,13 @@
 #include "Logger.hpp"
 #include "utils.hpp"
 
-Request::Request(): _state(METHOD_LINE), _error_code(0) {}
+Request::Request():
+	_state(METHOD_LINE),
+	_error_code(0),
+	_max_body_size(0),
+	_content_length(0),
+	_current_chunk_size(0),
+	_expect_continue(false) {}
 
 Request::~Request() {}
 
@@ -10,7 +16,7 @@ bool	Request::isFinished() const { return _state == DONE || _state == ERROR; }
 
 void	Request::setMaxBodySize(const unsigned long &num) { _max_body_size = num; }
 
-std::string	Request::getBody() const {return _body; }
+const std::string	&Request::getBody() const {return _body; }
 std::string	Request::getMethod() const {return _method; }
 std::string	Request::getHttpVersion() const {return _http_version; }
 std::string	Request::getPath() const {return _path; }
@@ -26,7 +32,11 @@ Request::State	Request::getState() const { return _state; }
 int		Request::getErrorCode() const { return _error_code; }
 
 void	Request::consume(const std::string &new_chunk){
-	_raw_storage += new_chunk;
+	consume(new_chunk.data(), new_chunk.size());
+}
+
+void	Request::consume(const char *new_chunk, size_t chunk_size){
+	_raw_storage.append(new_chunk, chunk_size);
 
 	if (_state == METHOD_LINE && !_raw_storage.empty()) {
 		std::string preview = _raw_storage.substr(0, std::min((size_t)100, _raw_storage.size()));
@@ -64,8 +74,22 @@ void	Request::consume(const std::string &new_chunk){
 					break;
 				if (_headers.count("transfer-encoding") && _headers["transfer-encoding"] == "chunked")
 					_state = CHUNK_SIZE;
-				else if (_headers.count("content-length"))
-					_state = BODY;
+				else if (_headers.count("content-length")) {
+					try {
+						_content_length = std::stoul(_headers["content-length"]);
+					} catch (...) {
+						_state = ERROR;
+						_error_code = 400;
+						break;
+					}
+					try {
+						if (_content_length <= (64UL * 1024UL * 1024UL))
+							_body.reserve(_content_length);
+					} catch (...) {
+						// Fallback to incremental growth without crashing the server
+					}
+					_state = (_content_length == 0) ? DONE : BODY;
+				}
 				else
 					_state = DONE;
 
@@ -74,18 +98,20 @@ void	Request::consume(const std::string &new_chunk){
 				parseHeaders(line);
 		}
 		else if (_state == BODY){
-			size_t contentLenght = 0;
-			try{
-				contentLenght = std::stoul(_headers["content-length"]);
-			} catch (...){
+			if (_content_length < _body.size()) {
 				_state = ERROR;
+				_error_code = 400;
 				break;
 			}
-			if (_raw_storage.size() >= contentLenght){
-				_body = _raw_storage.substr(0, contentLenght);
-				_raw_storage.erase(0, contentLenght);
-				_state = DONE;
+
+			size_t remaining = _content_length - _body.size();
+			size_t to_copy = std::min(remaining, _raw_storage.size());
+			if (to_copy > 0) {
+				_body.append(_raw_storage, 0, to_copy);
+				_raw_storage.erase(0, to_copy);
 			}
+			if (_body.size() == _content_length)
+				_state = DONE;
 			break;
 		}
 		else if (_state == CHUNK_SIZE){
@@ -160,7 +186,7 @@ void	Request::parseRequestLine(const std::string &line){
 	}
 	if (method != "GET" && method != "POST" && method != "DELETE" && method != "HEAD"){
 		_state = ERROR;
-		_error_code = 405;
+		_error_code = 501;
 		return;
 	}
 	if (version != "HTTP/1.1"){
@@ -170,11 +196,6 @@ void	Request::parseRequestLine(const std::string &line){
 	}
 
 	_method = method;
-	if (path.length() > 255) {
-		_state = ERROR;
-		_error_code = 414;
-		return;
-	}
 	_path = urlDecode(path);
 	_http_version = version;
 
@@ -186,8 +207,16 @@ void	Request::validate(){
 		_error_code = 400;
 		return ;
 	}
-	// Note: Content-Length validation is deferred to Cluster/RequestHandler
-	// where we know the correct client_max_body_size from Location config
+	std::string expect = getHeaders("expect");
+	if (!expect.empty()) {
+		if (expect == "100-continue") {
+			_expect_continue = true;
+		} else {
+			_state = ERROR;
+			_error_code = 417;
+			return ;
+		}
+	}
 }
 
 bool Request::shouldKeepAlive() const{
@@ -199,6 +228,14 @@ bool Request::shouldKeepAlive() const{
 			return true;
 	}
 	return _http_version == "HTTP/1.1";
+}
+
+bool	Request::needsContinue() {
+	if (_expect_continue) {
+		_expect_continue = false;
+		return true;
+	}
+	return false;
 }
 
 std::string	Request::getClientIP() const { return _client_ip; }

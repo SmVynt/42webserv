@@ -3,12 +3,10 @@
 CGIconfig::CGIconfig(const std::string &path,
 				   const std::string &uri,
 				   const std::string &query,
-				   const std::string &post,
 				   const ServerConfig &config) :
 	script_path(path),
 	request_uri(uri),
 	query_string(query),
-	post_data(post),
 	// timeout(config.client_timeout),
 	// max_output_size(config.client_max_body_size)
 	_config(config)
@@ -20,7 +18,6 @@ CGIexecutor::CGIexecutor(const CGIconfig &CGIconfig) :
 	_script_path(CGIconfig.script_path),
 	_request_uri(CGIconfig.request_uri),
 	_query_string(CGIconfig.query_string),
-	_post_data(CGIconfig.post_data),
 	_config(CGIconfig._config)
 	{
 	_error_type = CGIError::NO_ERROR;
@@ -43,10 +40,8 @@ void	CGIexecutor::setQuery(const std::string &query)
 	_env_vars["QUERY_STRING"] = query;
 }
 
-void	CGIexecutor::setPostData(const std::string &data) {
-	_post_data = data;
-	_env_vars["CONTENT_LENGTH"] = std::to_string(data.length());
-	setEnvKey("CONTENT_TYPE", "application/x-www-form-urlencoded");
+void	CGIexecutor::setPostDataSize(size_t data_size) {
+	_env_vars["CONTENT_LENGTH"] = std::to_string(data_size);
 	_env_vars["REQUEST_METHOD"] = "POST";
 };
 
@@ -110,15 +105,15 @@ void	CGIexecutor::setupEnvironment() {
 
 void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 
-	//check if script exists and is executable
-	if (access(_script_path.c_str(), F_OK) != 0) {
-		Logger::error("CGI script not found: " + _script_path);
-		Logger::error("Exit code: " + std::to_string(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND)));
-		exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND));
-	}
-	if (access(_script_path.c_str(), X_OK) != 0) {
-		Logger::error("CGI script not executable: " + _script_path);
-		exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_EXECUTABLE));
+	if (_env_vars["REQUEST_METHOD"] != "POST") {
+		if (access(_script_path.c_str(), F_OK) != 0) {
+			Logger::error("CGI script not found: " + _script_path);
+			exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND));
+		}
+		if (access(_script_path.c_str(), X_OK) != 0) {
+			Logger::error("CGI script not executable: " + _script_path);
+			exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_EXECUTABLE));
+		}
 	}
 
 	if (dup2(pipe_in[0], STDIN_FILENO) == -1) {
@@ -131,6 +126,7 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 		_error_type = CGIError::PIPE_FAILED;
 		exit(CGIError::getExitFromError(CGIError::PIPE_FAILED));
 	}
+
 
 	closePipes(pipe_in, pipe_out);
 
@@ -257,7 +253,7 @@ int	CGIexecutor::isComplete() {
 	} else if (result == _child_pid) {
 		Logger::debug("Exited with code: " + std::to_string(WEXITSTATUS(status)));
 		_error_type = CGIError::getErrorFromExit(WEXITSTATUS(status));
-		Logger::debug("Mapped error type: " + CGIError::getStatusCode(_error_type));
+		Logger::debug("Mapped error type: " + std::to_string(CGIError::getStatusCode(_error_type)));
 		if (WIFEXITED(status)) {
 			_exit_status = WEXITSTATUS(status);
 		} else if (WIFSIGNALED(status)) {
@@ -313,6 +309,13 @@ CGIError::Type	CGIexecutor::getErrorType() const {
 
 bool	CGIexecutor::hasError() const {
 	return _error_type != CGIError::NO_ERROR;
+}
+
+void	CGIexecutor::detachPipeFd(int fd) {
+	if (_pipe_in_fd == fd)
+		_pipe_in_fd = -1;
+	if (_pipe_out_fd == fd)
+		_pipe_out_fd = -1;
 }
 
 // //-----------------------//

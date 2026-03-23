@@ -25,13 +25,11 @@ class CGIconfig {
 		std::string			script_path;
 		std::string			request_uri;
 		std::string			query_string;
-		std::string			post_data;
 		const ServerConfig	&_config;
 
 		CGIconfig(const std::string &path,
 				  const std::string &uri,
 				  const std::string &query,
-				  const std::string &post,
 				  const ServerConfig &config);
 
 		~CGIconfig();
@@ -42,7 +40,6 @@ class CGIexecutor {
 		std::string							_script_path;
 		std::string							_request_uri;
 		std::string							_query_string;
-		std::string							_post_data;
 		std::map<std::string, std::string>	_env_vars;
 
 		const ServerConfig					&_config;
@@ -63,7 +60,7 @@ class CGIexecutor {
 		~CGIexecutor();
 
 		void	setQuery(const std::string &query);
-		void	setPostData(const std::string &data);
+		void	setPostDataSize(size_t data_size);
 		void	setHttpHeader(const std::string &name, const std::string &value);
 		void	setEnvKey(const std::string &key, const std::string &value);
 		void	setEnvKeySafe(const std::string &key, const std::string &value);
@@ -77,6 +74,7 @@ class CGIexecutor {
 		int			getExitStatus() const;
 		std::string	getOutput() const;
 		void		killChildProcess();
+		void		detachPipeFd(int fd);
 
 		CGIError::Type	getErrorType() const;
 		bool			hasError() const;

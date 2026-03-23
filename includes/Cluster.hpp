@@ -25,7 +25,7 @@
 
 class CGIexecutor;
 // Default value
-static const size_t			RECV_BUFFER_SIZE		= 4096;
+static const size_t			RECV_BUFFER_SIZE		= 65536;
 
 enum FDType{
 	FD_LISTENER,	// Listening socket: accepts new incoming connections
@@ -67,6 +67,7 @@ struct FDMetadata{
 	bool			is_new_session;		// True if a new session was created for this request
 
 	bool			is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
+	bool			needs_continue;		// Send "100 Continue" when POLLOUT is ready
 };
 class Cluster {
 	public:
@@ -96,6 +97,7 @@ class Cluster {
 		// Utils for pollfds management and metadata
 		void addFD(int fd, FDType type, int client_ref, int timeout);
 		void removeFD(int fd);
+		void removeFDNoClose(int fd);
 		void updateActivity(int fd);
 		void handleTimeout();
 		void resetConnection(int fd);
