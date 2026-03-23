@@ -7,7 +7,8 @@ Request::Request():
 	_error_code(0),
 	_max_body_size(0),
 	_content_length(0),
-	_current_chunk_size(0) {}
+	_current_chunk_size(0),
+	_expect_continue(false) {}
 
 Request::~Request() {}
 
@@ -206,8 +207,16 @@ void	Request::validate(){
 		_error_code = 400;
 		return ;
 	}
-	// Note: Content-Length validation is deferred to Cluster/RequestHandler
-	// where we know the correct client_max_body_size from Location config
+	std::string expect = getHeaders("expect");
+	if (!expect.empty()) {
+		if (expect == "100-continue") {
+			_expect_continue = true;
+		} else {
+			_state = ERROR;
+			_error_code = 417;
+			return ;
+		}
+	}
 }
 
 bool Request::shouldKeepAlive() const{
@@ -219,6 +228,14 @@ bool Request::shouldKeepAlive() const{
 			return true;
 	}
 	return _http_version == "HTTP/1.1";
+}
+
+bool	Request::needsContinue() {
+	if (_expect_continue) {
+		_expect_continue = false;
+		return true;
+	}
+	return false;
 }
 
 std::string	Request::getClientIP() const { return _client_ip; }

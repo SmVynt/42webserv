@@ -67,6 +67,7 @@ struct FDMetadata{
 	bool			is_new_session;		// True if a new session was created for this request
 
 	bool			is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
+	bool			needs_continue;		// Send "100 Continue" when POLLOUT is ready
 };
 class Cluster {
 	public:

@@ -288,8 +288,13 @@ bool Cluster::handleClientRequest(int fd)
 
 		data.request.consume(buffer, static_cast<size_t>(byte_reads));
 
-		if (!data.request.isFinished())
+		if (!data.request.isFinished()) {
+			if (data.request.needsContinue()) {
+				data.needs_continue = true;
+				updatePollEvents(fd, POLLOUT);
+			}
 			return false;
+		}
 
 		if (data.request.getState() == Request::ERROR){
 			int error_code = data.request.getErrorCode();
@@ -528,6 +533,15 @@ void Cluster::updatePollEvents(int fd, short events)
 bool Cluster::handleClientResponse(int fd)
 {
 	FDMetadata& data = _fd_table.at(fd);
+
+	if (data.needs_continue) {
+		static const char cont[] = "HTTP/1.1 100 Continue\r\n\r\n";
+		send(fd, cont, sizeof(cont) - 1, MSG_NOSIGNAL);
+		data.needs_continue = false;
+		updatePollEvents(fd, POLLIN);
+		return false;
+	}
+
 	if (data.response.getRemainingSize() == 0){
 		closeConnection(fd);
 		return true;
@@ -580,6 +594,7 @@ void Cluster::resetConnection(int fd){
 	data.last_activity = time(NULL);
 	data.request.setMaxBodySize(saved_max_body);
 	data.is_new_session = false;
+	data.needs_continue = false;
 	data.session_id.clear();
 	data.session_ptr = nullptr;
 
@@ -611,6 +626,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.timeout_value = timeout;
 	metadata.timeout_reading_value = 30;
 	metadata.is_ready_to_close = false;
+	metadata.needs_continue = false;
 	metadata.cgi_executor = nullptr;
 	metadata.session_ptr = nullptr;
 	metadata.port = -1;

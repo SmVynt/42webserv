@@ -26,7 +26,7 @@ private:
 	std::string	_body;
 	std::map<std::string, std::string>	_headers;
 	std::string	_client_ip;
-
+	bool		_expect_continue;
 
 public:
 	Request();
@@ -40,6 +40,7 @@ public:
 
 	bool	isFinished() const;
 	bool	shouldKeepAlive() const;
+	bool	needsContinue();
 
 	void	setMaxBodySize(const unsigned long &num);
 
