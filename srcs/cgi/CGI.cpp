@@ -105,13 +105,15 @@ void	CGIexecutor::setupEnvironment() {
 
 void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 
-	if (access(_script_path.c_str(), F_OK) != 0) {
-		Logger::error("CGI script not found: " + _script_path);
-		exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND));
-	}
-	if (access(_script_path.c_str(), X_OK) != 0) {
-		Logger::error("CGI script not executable: " + _script_path);
-		exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_EXECUTABLE));
+	if (_env_vars["REQUEST_METHOD"] != "POST") {
+		if (access(_script_path.c_str(), F_OK) != 0) {
+			Logger::error("CGI script not found: " + _script_path);
+			exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_FOUND));
+		}
+		if (access(_script_path.c_str(), X_OK) != 0) {
+			Logger::error("CGI script not executable: " + _script_path);
+			exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_EXECUTABLE));
+		}
 	}
 
 	if (dup2(pipe_in[0], STDIN_FILENO) == -1) {
