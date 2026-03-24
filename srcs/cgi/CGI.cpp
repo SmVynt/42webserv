@@ -1,18 +1,24 @@
 #include "CGI.hpp"
 
+//****************************************************//
+//*********** CGIconfig Class Functions **************//
+//****************************************************//
+
 CGIconfig::CGIconfig(const std::string &path,
-				   const std::string &uri,
-				   const std::string &query,
-				   const ServerConfig &config) :
+					const std::string &uri,
+					const std::string &query,
+					const ServerConfig &config) :
 	script_path(path),
 	request_uri(uri),
 	query_string(query),
-	// timeout(config.client_timeout),
-	// max_output_size(config.client_max_body_size)
 	_config(config)
 	{}
 
 CGIconfig::~CGIconfig() {}
+
+//****************************************************//
+//*********** CGIexecutor Class Functions ************//
+//****************************************************//
 
 CGIexecutor::CGIexecutor(const CGIconfig &CGIconfig) :
 	_script_path(CGIconfig.script_path),
@@ -34,6 +40,10 @@ CGIexecutor::~CGIexecutor() {
 	Logger::debug("CGIexecutor destroyed for script: " + _script_path);
 }
 
+//****************************************************//
+//*********** Setter Functions ***********************//
+//****************************************************//
+
 void	CGIexecutor::setQuery(const std::string &query)
 {
 	_query_string = query;
@@ -43,10 +53,9 @@ void	CGIexecutor::setQuery(const std::string &query)
 void	CGIexecutor::setPostDataSize(size_t data_size) {
 	_env_vars["CONTENT_LENGTH"] = std::to_string(data_size);
 	_env_vars["REQUEST_METHOD"] = "POST";
-};
+}
 
 void	CGIexecutor::setHttpHeader(const std::string &name, const std::string &value) {
-	// Convert HTTP header name to CGI format: Host -> HTTP_HOST
 	std::string cgi_name = "HTTP_" + name;
 	for (size_t i = 0; i < cgi_name.length(); ++i) {
 		if (cgi_name[i] == '-')
@@ -72,7 +81,6 @@ void	CGIexecutor::setupEnvironment() {
 	_env_vars["SERVER_PROTOCOL"] = "HTTP/1.1";
 	_env_vars["SERVER_SOFTWARE"] = "webserv/1.0";
 
-	// Set QUERY_STRING from config
 	_env_vars["QUERY_STRING"] = _query_string;
 
 	setEnvKey("SERVER_NAME", _config.server_names.empty() ? "localhost" : _config.server_names[0]);
@@ -91,8 +99,11 @@ void	CGIexecutor::setupEnvironment() {
 	_env_vars["REDIRECT_STATUS"] = "200";
 }
 
-void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
+//****************************************************//
+//*********** Child Process Functions ****************//
+//****************************************************//
 
+void	CGIexecutor::childCheckCgiPath() {
 	if (_env_vars["REQUEST_METHOD"] != "POST") {
 		if (access(_script_path.c_str(), F_OK) != 0) {
 			Logger::error("CGI script not found: " + _script_path);
@@ -103,33 +114,39 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 			exit(CGIError::getExitFromError(CGIError::SCRIPT_NOT_EXECUTABLE));
 		}
 	}
+}
 
+void	CGIexecutor::childResolvePipes(int pipe_in[2], int pipe_out[2]) {
 	if (dup2(pipe_in[0], STDIN_FILENO) == -1) {
 		Logger::error("dup2() failed for stdin");
-		_error_type = CGIError::PIPE_FAILED;
 		exit(CGIError::getExitFromError(CGIError::PIPE_FAILED));
 	}
 	if (dup2(pipe_out[1], STDOUT_FILENO) == -1) {
 		Logger::error("dup2() failed for stdout");
-		_error_type = CGIError::PIPE_FAILED;
 		exit(CGIError::getExitFromError(CGIError::PIPE_FAILED));
 	}
 
 	closePipes(pipe_in, pipe_out);
+}
 
-	// Resolve all relative cgi_path values to absolute before chdir
-	std::map<std::string, std::string> abs_cgi_paths;
-	for (const auto &loc : _config.locations) {
-		if (loc.cgi_path.has_value() && loc.cgi_path.value()[0] != '/') {
-			char buf[PATH_MAX];
-			std::string rel = loc.cgi_path.value();
-			if (rel.substr(0, 2) == "./")
-				rel = rel.substr(2);
-			// Build absolute path from cwd + relative path
-			if (getcwd(buf, sizeof(buf)))
-				abs_cgi_paths[loc.cgi_path.value()] = std::string(buf) + "/" + rel;
-		}
-	}
+std::string	CGIexecutor::childResolvedInterpreterPath(const std::string& config_cgi_path,
+									const std::string& script_path)
+{
+	if (config_cgi_path.empty() || config_cgi_path[0] == '/')
+		return config_cgi_path;
+	size_t slash = script_path.find_last_of('/');
+	if (slash == std::string::npos)
+		return config_cgi_path;
+
+	std::string tail = config_cgi_path;
+	if (tail.length() >= 2 && tail[0] == '.' && tail[1] == '/')
+		tail = tail.substr(2);
+	return (std::string("../") + tail);
+}
+
+void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
+	childCheckCgiPath();
+	childResolvePipes(pipe_in, pipe_out);
 
 	std::string script_name = _script_path;
 	size_t last_slash = _script_path.find_last_of('/');
@@ -160,9 +177,7 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	std::string resolved_path;
 	for (const auto &loc : _config.locations) {
 		if (loc.cgi_ext.has_value() && loc.cgi_ext.value() == cgi_ext && loc.cgi_path.has_value()) {
-			resolved_path = loc.cgi_path.value();
-			if (abs_cgi_paths.count(resolved_path))
-				resolved_path = abs_cgi_paths[resolved_path];
+			resolved_path = childResolvedInterpreterPath(loc.cgi_path.value(), _script_path);
 			argv[0] = resolved_path.c_str();
 			argv[1] = script_name.c_str();
 			argv[2] = nullptr;
@@ -172,13 +187,16 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 
 	// If execve returns, it failed
 	Logger::error("execve() failed for " + _script_path);
-	_error_type = CGIError::EXEC_FAILED;
 	// Cleanup
 	for (size_t i = 0; i < envp.size(); ++i) {
 		free(envp[i]);
 	}
 	exit(1);
 }
+
+//****************************************************//
+//*********** Main Process Functions *****************//
+//****************************************************//
 
 int	CGIexecutor::start() {
 
@@ -245,17 +263,6 @@ int	CGIexecutor::start() {
 	return 0;
 };
 
-
-// bool	CGIexecutor::checkTimeout() {
-// 	// bool timed_out = (time(NULL) - _start_time >= _timeout_seconds);
-// 	bool timed_out = (time(NULL) - _start_time >= _config.client_timeout);
-// 	if (timed_out){
-// 		_error_type = CGIError::TIMEOUT;
-// 	}
-// 	return timed_out;
-
-// }
-
 int	CGIexecutor::isComplete() {
 	if (_child_pid == -1)
 		return -1;
@@ -316,7 +323,6 @@ void	CGIexecutor::killChildProcess() {
 	safeClose(_pipe_in_fd);
 }
 
-// Error handling
 CGIError::Type	CGIexecutor::getErrorType() const {
 	return _error_type;
 }
@@ -331,36 +337,3 @@ void	CGIexecutor::detachPipeFd(int fd) {
 	if (_pipe_out_fd == fd)
 		_pipe_out_fd = -1;
 }
-
-// //-----------------------//
-// //       RUN CGI         //
-// //-----------------------//
-
-// // Wrapper function for simple CGI execution
-// CGIexecutor*	runCGI(const std::string &script_path,
-// 				const std::string &query_string,
-// 				const std::string &post_data,
-// 				const ServerConfig &config)
-// {
-// 	CGIconfig	cgi_config(script_path, script_path, query_string, post_data, config);
-// 	CGIexecutor*	cgi = new CGIexecutor(cgi_config);
-
-// 	if (cgi->start() != 0) {
-// 		delete cgi;
-// 		return nullptr;
-// 	}
-
-// 	return cgi;
-// }
-
-// // Overload: script + config only
-// CGIexecutor*	runCGI(const std::string &script_path, const ServerConfig &config) {
-// 	return runCGI(script_path, "", "", config);
-// }
-
-// // Overload: script + query + config (skip post_data)
-// CGIexecutor*	runCGI(const std::string &script_path,
-// 					const std::string &query_string,
-// 					const ServerConfig &config) {
-// 	return runCGI(script_path, query_string, "", config);
-// }
