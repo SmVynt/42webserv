@@ -57,7 +57,7 @@ public:
 
 };
 
-void reqHardcode();
-void reqChunkedHardcode();
+// void reqHardcode();
+// void reqChunkedHardcode();
 
 #endif

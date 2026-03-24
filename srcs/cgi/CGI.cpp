@@ -246,15 +246,15 @@ int	CGIexecutor::start() {
 };
 
 
-bool	CGIexecutor::checkTimeout() {
-	// bool timed_out = (time(NULL) - _start_time >= _timeout_seconds);
-	bool timed_out = (time(NULL) - _start_time >= _config.client_timeout);
-	if (timed_out){
-		_error_type = CGIError::TIMEOUT;
-	}
-	return timed_out;
+// bool	CGIexecutor::checkTimeout() {
+// 	// bool timed_out = (time(NULL) - _start_time >= _timeout_seconds);
+// 	bool timed_out = (time(NULL) - _start_time >= _config.client_timeout);
+// 	if (timed_out){
+// 		_error_type = CGIError::TIMEOUT;
+// 	}
+// 	return timed_out;
 
-}
+// }
 
 int	CGIexecutor::isComplete() {
 	if (_child_pid == -1)

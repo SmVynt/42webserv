@@ -35,23 +35,23 @@ size_t	ResMonitor::getOpenFDAmount() {
 	return (count - 3);
 }
 
-size_t	ResMonitor::getAvailableFDAmount() {
-	size_t max_fd = getMaxFDAmount();
-	size_t open_fd = getOpenFDAmount();
-	if (open_fd >= max_fd)
-		return 0;
-	return max_fd - open_fd;
-}
+// size_t	ResMonitor::getAvailableFDAmount() {
+// 	size_t max_fd = getMaxFDAmount();
+// 	size_t open_fd = getOpenFDAmount();
+// 	if (open_fd >= max_fd)
+// 		return 0;
+// 	return max_fd - open_fd;
+// }
 
-bool ResMonitor::isApproachingLimit() {
-	size_t max_fd = getMaxFDAmount();
-	size_t open_fd = getOpenFDAmount();
-	if (max_fd == 0)
-		return false;
-	float usage = static_cast<float>(open_fd) / static_cast<float>(max_fd);
-	if (usage >= _FDUsageThreshold) {
-		Logger::warning("FD usage approaching limit: " + std::to_string(usage * 100) + "% used");
-		return true;
-	}
-	return false;
-}
+// bool ResMonitor::isApproachingLimit() {
+// 	size_t max_fd = getMaxFDAmount();
+// 	size_t open_fd = getOpenFDAmount();
+// 	if (max_fd == 0)
+// 		return false;
+// 	float usage = static_cast<float>(open_fd) / static_cast<float>(max_fd);
+// 	if (usage >= _FDUsageThreshold) {
+// 		Logger::warning("FD usage approaching limit: " + std::to_string(usage * 100) + "% used");
+// 		return true;
+// 	}
+// 	return false;
+// }

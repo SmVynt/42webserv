@@ -20,7 +20,7 @@ class CGIError{
 
 		static int			getStatusCode(Type errorType);
 		static std::string	getStatusMessage(Type errorType);
-		static std::string	getErrorPage(Type errorType);
+		// static std::string	getErrorPage(Type errorType);
 		static Type			getErrorFromExit(int exitCode);
 		static int 			getExitFromError(Type errorType);
 };
