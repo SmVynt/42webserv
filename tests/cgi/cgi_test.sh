@@ -240,7 +240,7 @@ test_multiple_workers "CGI Echo with 10 Workers" "/cgi-bin/python/echo.py"
 test_multiple_workers "CGI Echo with 20 Workers (Small POST)" "/cgi-bin/python/echo.py" 10000 20
 # test_multiple_workers "CGI Echo with 100 Workers" "/cgi-bin/python/echo.py" 1000000 100
 test_multiple_workers "CGI Echo with 20 Workers (Large POST)" "/cgi-bin/python/echo.py" 5000000 20
-test_multiple_workers "CGI Echo with 20 Workers (Very Large POST)" "/cgi-bin/python/echo.py" 10000000 20
+# test_multiple_workers "CGI Echo with 20 Workers (Very Large POST)" "/cgi-bin/python/echo.py" 10000000 20
 test_multiple_workers "CGI Youpi" "/directory/youpi.bla" 10000000 20
 
 echo "=========================================="

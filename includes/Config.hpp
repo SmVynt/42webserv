@@ -24,14 +24,14 @@ struct Location {
 };
 
 struct ServerConfig {
-	int port = 0;
+	int port;
 	std::string host;
 	std::vector<std::string> server_names;
-	unsigned long client_max_body_size = 1048576;
+	unsigned long client_max_body_size;
 	std::map<int, std::string> error_pages;
 	std::vector<Location> locations;
-	int	client_timeout = 60;
-	int	session_timeout = 300;
+	int	client_timeout;
+	int	session_timeout;
 };
 
 class Config {

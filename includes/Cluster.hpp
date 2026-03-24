@@ -44,6 +44,7 @@ enum ClientState{
 };
 
 struct FDMetadata{
+	uint64_t		generation;		// Unique ID to detect FD reuse
 	int				fd;				// The file descriptor number
 	FDType			type;			// Purpose of this descriptor (from enum above)
 	ClientState		client_state;	// State of the clients from enum above
@@ -115,6 +116,7 @@ class Cluster {
 		std::vector<ServerConfig>	_config_data;
 		std::vector<struct pollfd>	_pollfds;
 		std::map<int, FDMetadata>	_fd_table;
+		uint64_t					_fd_generation;
 		// Map for socket connection between configs or servers
 		std::map<int, int>			_listen_sockets;
 		// bool						_shutdown;

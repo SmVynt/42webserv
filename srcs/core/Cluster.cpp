@@ -1,7 +1,7 @@
 #include "Cluster.hpp"
 
-Cluster::Cluster() : _shutdown(false) {}
-Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config), _shutdown(false) {}
+Cluster::Cluster() : _fd_generation(0), _shutdown(false) {}
+Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config), _fd_generation(0), _shutdown(false) {}
 Cluster::~Cluster()
 {
 	// First pass: kill and delete all CGI executors to prevent leaks
@@ -103,7 +103,8 @@ void	Cluster::run()
 {
 	Logger::info("--- Server is starting the event loop ---");
 
-	std::vector<std::pair<int, short>> events;
+	struct PollEvent { int fd; short revents; uint64_t gen; };
+	std::vector<PollEvent> events;
 
 	while (!_shutdown){
 		_pollfds.erase(
@@ -120,12 +121,18 @@ void	Cluster::run()
 
 		events.clear();
 		for (const auto& pfd : _pollfds){
-			if (pfd.fd >= 0 && pfd.revents != 0)
-				events.emplace_back(pfd.fd, pfd.revents);
+			if (pfd.fd >= 0 && pfd.revents != 0) {
+				auto it = _fd_table.find(pfd.fd);
+				uint64_t gen = (it != _fd_table.end()) ? it->second.generation : 0;
+				events.push_back({pfd.fd, pfd.revents, gen});
+			}
 		}
 		handleTimeout();
 
-		for (const auto& [fd, revents] : events){
+		for (const auto& ev : events){
+			int fd = ev.fd;
+			short revents = ev.revents;
+
 			auto meta_it = _fd_table.find(fd);
 			if (meta_it == _fd_table.end())
 			{
@@ -137,6 +144,8 @@ void	Cluster::run()
 				}
 				continue;
 			}
+			if (meta_it->second.generation != ev.gen)
+				continue;
 
 			if (revents & POLLERR){
 				Logger::warning("Poll error on FD " + std::to_string(fd));
@@ -307,6 +316,7 @@ bool Cluster::handleClientRequest(int fd)
 			}
 			return false;
 		}
+		data.needs_continue = false;
 
 		if (data.request.getState() == Request::ERROR){
 			int error_code = data.request.getErrorCode();
@@ -626,6 +636,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	_pollfds.push_back(pfd);
 
 	FDMetadata metadata = {};
+	metadata.generation = ++_fd_generation;
 	metadata.fd = fd;
 	metadata.type = type;
 	metadata.client_state = STATE_READING;
