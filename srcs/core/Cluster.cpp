@@ -62,10 +62,21 @@ void	Cluster::setupCluster()
 		sockaddr_in address{};
 		address.sin_family = AF_INET;
 		address.sin_port = htons(port);
-		if (host == "0.0.0.0")
+		if (host == "0.0.0.0") {
 			address.sin_addr.s_addr = INADDR_ANY;
-		else
-			inet_pton(AF_INET, host.c_str(), &address.sin_addr);
+		} else {
+			struct addrinfo hints{}, *res = nullptr;
+			hints.ai_family = AF_INET;
+			hints.ai_socktype = SOCK_STREAM;
+			if (getaddrinfo(host.c_str(), nullptr, &hints, &res) == 0 && res) {
+				address.sin_addr = reinterpret_cast<sockaddr_in*>(res->ai_addr)->sin_addr;
+				freeaddrinfo(res);
+			} else {
+				if (res) freeaddrinfo(res);
+				close(socket_fd);
+				throw std::runtime_error("getaddrinfo failed for host: " + host);
+			}
+		}
 
 		if (bind(socket_fd, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) < 0)
 		{
@@ -244,9 +255,9 @@ void Cluster::acceptNewConnection(int listen_fd)
 	data.config_index = config_index;
 	data.client_state = STATE_READING;
 	data.request.setMaxBodySize(max_body);
-	// Let's also store the client's IP address for CGI environment variables
-	char ip_str[INET_ADDRSTRLEN];
-	inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, INET_ADDRSTRLEN);
+	char ip_str[NI_MAXHOST];
+	getnameinfo(reinterpret_cast<struct sockaddr*>(&client_addr), client_len,
+				ip_str, sizeof(ip_str), nullptr, 0, NI_NUMERICHOST);
 	data.request.setClientIP(ip_str);
 
 	std::cout << "New client connected: FD " << client_fd << std::endl;
@@ -755,8 +766,6 @@ void	Cluster::handleCgiRead(int cgi_fd)
 	}
 	else
 	{
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return;
 		Logger::error("CGI read error on pipe " + std::to_string(cgi_fd));
 		handleCgiEnd(cgi_fd);
 	}
@@ -862,8 +871,6 @@ void	Cluster::handleCgiWrite(int cgi_in_fd)
 	}
 	else
 	{
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return;
 		Logger::error("CGI write error on pipe " + std::to_string(cgi_in_fd));
 		removeFD(cgi_in_fd);
 		if (_fd_table.count(client_fd) && _fd_table.at(client_fd).cgi_executor)

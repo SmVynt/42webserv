@@ -82,19 +82,7 @@ void	CGIexecutor::setupEnvironment() {
 	_env_vars["PATH_TRANSLATED"] = _script_path;
 	_env_vars["SCRIPT_NAME"] = "";
 
-	char abs_script_path[PATH_MAX];
-	char cwd[PATH_MAX];
-	if (getcwd(cwd, sizeof(cwd)) != NULL) {
-		if (realpath(_script_path.c_str(), abs_script_path)) {
-			_env_vars["SCRIPT_FILENAME"] = std::string(abs_script_path);
-		} else {
-			// If realpath fails, construct the path manually
-			std::string full_path = std::string(cwd) + "/" + _script_path;
-			_env_vars["SCRIPT_FILENAME"] = full_path;
-		}
-	} else {
-		_env_vars["SCRIPT_FILENAME"] = _script_path;
-	}
+	_env_vars["SCRIPT_FILENAME"] = _script_path;
 
 	_env_vars["AUTH_TYPE"] = "";
 	_env_vars["REMOTE_IDENT"] = "";
@@ -127,8 +115,30 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 		exit(CGIError::getExitFromError(CGIError::PIPE_FAILED));
 	}
 
-
 	closePipes(pipe_in, pipe_out);
+
+	// Resolve all relative cgi_path values to absolute before chdir
+	std::map<std::string, std::string> abs_cgi_paths;
+	for (const auto &loc : _config.locations) {
+		if (loc.cgi_path.has_value() && loc.cgi_path.value()[0] != '/') {
+			char buf[PATH_MAX];
+			std::string rel = loc.cgi_path.value();
+			if (rel.substr(0, 2) == "./")
+				rel = rel.substr(2);
+			// Build absolute path from cwd + relative path
+			if (getcwd(buf, sizeof(buf)))
+				abs_cgi_paths[loc.cgi_path.value()] = std::string(buf) + "/" + rel;
+		}
+	}
+
+	std::string script_name = _script_path;
+	size_t last_slash = _script_path.find_last_of('/');
+	if (last_slash != std::string::npos) {
+		std::string dir = _script_path.substr(0, last_slash);
+		script_name = _script_path.substr(last_slash + 1);
+		if (!dir.empty())
+			chdir(dir.c_str());
+	}
 
 	std::vector<char*> envp;
 	for (std::map<std::string, std::string>::iterator it = _env_vars.begin();
@@ -139,18 +149,22 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	}
 	envp.push_back(nullptr);
 
-	// Determine interpreter based on extension
 	const char* argv[3];
-	std::string cgi_ext = _script_path.substr(_script_path.find_last_of('.'));
+	std::string cgi_ext = script_name.substr(script_name.find_last_of('.'));
 	if (cgi_ext == ".sh") {
-		argv[0] = _script_path.c_str();
+		std::string local_path = "./" + script_name;
+		argv[0] = local_path.c_str();
 		argv[1] = nullptr;
 		execve(argv[0], (char**)argv, envp.data());
 	}
-	for (auto &loc : _config.locations) {
+	std::string resolved_path;
+	for (const auto &loc : _config.locations) {
 		if (loc.cgi_ext.has_value() && loc.cgi_ext.value() == cgi_ext && loc.cgi_path.has_value()) {
-			argv[0] = loc.cgi_path.value().c_str();
-			argv[1] = _script_path.c_str();
+			resolved_path = loc.cgi_path.value();
+			if (abs_cgi_paths.count(resolved_path))
+				resolved_path = abs_cgi_paths[resolved_path];
+			argv[0] = resolved_path.c_str();
+			argv[1] = script_name.c_str();
 			argv[2] = nullptr;
 			execve(argv[0], (char**)argv, envp.data());
 		}

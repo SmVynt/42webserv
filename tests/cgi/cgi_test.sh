@@ -110,10 +110,11 @@ test_cgi() {
 
     echo -n "  Testing $description... "
 
+    local curl_err
     if [ "$method" = "POST" ]; then
-        response=$(curl $CURL_OPTS -X POST -d "$post_data" -w "\n%{http_code}" "$SERVER_URL$path" 2>/dev/null || true)
+        response=$(curl $CURL_OPTS -X POST -d "$post_data" -w "\n%{http_code}" "$SERVER_URL$path" 2>&1) || curl_err=$?
     else
-        response=$(curl $CURL_OPTS -w "\n%{http_code}" "$SERVER_URL$path" 2>/dev/null || true)
+        response=$(curl $CURL_OPTS -w "\n%{http_code}" "$SERVER_URL$path" 2>&1) || curl_err=$?
     fi
 
     status=$(echo "$response" | tail -n 1)
@@ -130,8 +131,8 @@ test_cgi() {
                 return 0
             else
                 echo -e "${RED}✗${NC} (Status: $status, Content mismatch)"
-				echo -e "Expected content: $expected_content"
-				echo -e "Received content: $body"
+                echo "    Expected: $expected_content"
+                echo "    Body:     $body"
                 FAILED=$((FAILED + 1))
                 return 0
             fi
@@ -142,6 +143,9 @@ test_cgi() {
         fi
     else
         echo -e "${RED}✗${NC} (Expected: $expected_status, Got: $status)"
+        if [ -n "$body" ]; then
+            echo "    Body: $(echo "$body" | head -5)"
+        fi
         FAILED=$((FAILED + 1))
         return 0
     fi
@@ -163,7 +167,7 @@ test_multiple_workers() {
         (
             echo "    Worker $i: Sending POST request with $post_size bytes..."
             dd if=/dev/urandom bs=1 count="$post_size" 2>/dev/null | \
-            curl $CURL_OPTS -X POST --data-binary @- -w "\n%{http_code} %{size_download}" "$SERVER_URL$path" > "$tmpdir/worker_$i.out" 2>/dev/null
+            curl $CURL_OPTS -X POST --data-binary @- -w "\n%{http_code} %{size_download}" "$SERVER_URL$path" > "$tmpdir/worker_$i.out" 2>"$tmpdir/worker_$i.err"
         ) &
         pids+=("$!")
 		sleep 0.05  # Stagger worker start times slightly
@@ -171,11 +175,16 @@ test_multiple_workers() {
 
     wait "${pids[@]}"
 
-    # Print return codes and sizes
     for i in $(seq 1 $workers); do
         code=$(tail -n 1 "$tmpdir/worker_$i.out" | awk '{print $1}')
         sz=$(tail -n 1 "$tmpdir/worker_$i.out" | awk '{print $2}')
-        echo "    Worker $i: HTTP $code, Size $sz"
+        err=$(cat "$tmpdir/worker_$i.err" 2>/dev/null)
+        if [ "$code" = "000" ] || [ -z "$code" ]; then
+            body=$(head -n -1 "$tmpdir/worker_$i.out" | head -3)
+            echo "    Worker $i: HTTP ${code:-000}, Size ${sz:-0} | err: ${err:-none} ${body:+| body: $body}"
+        else
+            echo "    Worker $i: HTTP $code, Size $sz"
+        fi
     done
 
     # Check results
