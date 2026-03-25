@@ -1,7 +1,6 @@
 #include <iostream>
-#include <csignal>
+#include <signal.h>
 #include "Request.hpp"
-#include "VirtualServer.hpp"
 #include "Cluster.hpp"
 
 int main(int argc, char **argv) {
@@ -22,12 +21,8 @@ int main(int argc, char **argv) {
 		Cluster webserv(servers);
 		cluster_reference() = &webserv;
 
-		// Register signal handlers for graceful shutdown
-		struct sigaction sa{};
-		sa.sa_handler = signal_handler;
-		sigemptyset(&sa.sa_mask);
-		sigaction(SIGTERM, &sa, NULL);
-		sigaction(SIGINT, &sa, NULL);
+		signal(SIGTERM, signal_handler);
+		signal(SIGINT, signal_handler);
 		signal(SIGPIPE, SIG_IGN);
 
 		webserv.setupCluster();

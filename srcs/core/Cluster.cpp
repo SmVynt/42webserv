@@ -1,7 +1,7 @@
 #include "Cluster.hpp"
 
-Cluster::Cluster() : _shutdown(false) {}
-Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config), _shutdown(false) {}
+Cluster::Cluster() : _fd_generation(0), _shutdown(false) {}
+Cluster::Cluster(const std::vector<ServerConfig>& config) : _config_data(config), _fd_generation(0), _shutdown(false) {}
 Cluster::~Cluster()
 {
 	// First pass: kill and delete all CGI executors to prevent leaks
@@ -62,10 +62,21 @@ void	Cluster::setupCluster()
 		sockaddr_in address{};
 		address.sin_family = AF_INET;
 		address.sin_port = htons(port);
-		if (host == "0.0.0.0")
+		if (host == "0.0.0.0") {
 			address.sin_addr.s_addr = INADDR_ANY;
-		else
-			inet_pton(AF_INET, host.c_str(), &address.sin_addr);
+		} else {
+			struct addrinfo hints{}, *res = nullptr;
+			hints.ai_family = AF_INET;
+			hints.ai_socktype = SOCK_STREAM;
+			if (getaddrinfo(host.c_str(), nullptr, &hints, &res) == 0 && res) {
+				address.sin_addr = reinterpret_cast<sockaddr_in*>(res->ai_addr)->sin_addr;
+				freeaddrinfo(res);
+			} else {
+				if (res) freeaddrinfo(res);
+				close(socket_fd);
+				throw std::runtime_error("getaddrinfo failed for host: " + host);
+			}
+		}
 
 		if (bind(socket_fd, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) < 0)
 		{
@@ -92,7 +103,8 @@ void	Cluster::run()
 {
 	Logger::info("--- Server is starting the event loop ---");
 
-	std::vector<std::pair<int, short>> events;
+	struct PollEvent { int fd; short revents; uint64_t gen; };
+	std::vector<PollEvent> events;
 
 	while (!_shutdown){
 		_pollfds.erase(
@@ -109,12 +121,18 @@ void	Cluster::run()
 
 		events.clear();
 		for (const auto& pfd : _pollfds){
-			if (pfd.fd >= 0 && pfd.revents != 0)
-				events.emplace_back(pfd.fd, pfd.revents);
+			if (pfd.fd >= 0 && pfd.revents != 0) {
+				auto it = _fd_table.find(pfd.fd);
+				uint64_t gen = (it != _fd_table.end()) ? it->second.generation : 0;
+				events.push_back({pfd.fd, pfd.revents, gen});
+			}
 		}
 		handleTimeout();
 
-		for (const auto& [fd, revents] : events){
+		for (const auto& ev : events){
+			int fd = ev.fd;
+			short revents = ev.revents;
+
 			auto meta_it = _fd_table.find(fd);
 			if (meta_it == _fd_table.end())
 			{
@@ -126,6 +144,8 @@ void	Cluster::run()
 				}
 				continue;
 			}
+			if (meta_it->second.generation != ev.gen)
+				continue;
 
 			if (revents & POLLERR){
 				Logger::warning("Poll error on FD " + std::to_string(fd));
@@ -244,9 +264,9 @@ void Cluster::acceptNewConnection(int listen_fd)
 	data.config_index = config_index;
 	data.client_state = STATE_READING;
 	data.request.setMaxBodySize(max_body);
-	// Let's also store the client's IP address for CGI environment variables
-	char ip_str[INET_ADDRSTRLEN];
-	inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, INET_ADDRSTRLEN);
+	char ip_str[NI_MAXHOST];
+	getnameinfo(reinterpret_cast<struct sockaddr*>(&client_addr), client_len,
+				ip_str, sizeof(ip_str), nullptr, 0, NI_NUMERICHOST);
 	data.request.setClientIP(ip_str);
 
 	std::cout << "New client connected: FD " << client_fd << std::endl;
@@ -296,6 +316,7 @@ bool Cluster::handleClientRequest(int fd)
 			}
 			return false;
 		}
+		data.needs_continue = false;
 
 		if (data.request.getState() == Request::ERROR){
 			int error_code = data.request.getErrorCode();
@@ -615,6 +636,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	_pollfds.push_back(pfd);
 
 	FDMetadata metadata = {};
+	metadata.generation = ++_fd_generation;
 	metadata.fd = fd;
 	metadata.type = type;
 	metadata.client_state = STATE_READING;
@@ -755,8 +777,6 @@ void	Cluster::handleCgiRead(int cgi_fd)
 	}
 	else
 	{
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return;
 		Logger::error("CGI read error on pipe " + std::to_string(cgi_fd));
 		handleCgiEnd(cgi_fd);
 	}
@@ -786,8 +806,9 @@ void Cluster::handleCgiEnd(int cgi_fd)
 
 		if (client_data.cgi_executor)
 		{
-			client_data.cgi_executor->isComplete();
-			if (client_data.cgi_executor->hasError() || client_data.cgi_executor->getExitStatus() != 0) {
+			int cgi_state = client_data.cgi_executor->isComplete();
+			if (client_data.cgi_executor->hasError() ||
+				(cgi_state == 1 && client_data.cgi_executor->getExitStatus() != 0)) {
 				Logger::error("Error code: " + CGIError::getStatusMessage(client_data.cgi_executor->getErrorType()));
 				client_data.response.setBody(CGIError::getStatusMessage(client_data.cgi_executor->getErrorType()));
 				client_data.response.setStatusCode(CGIError::getStatusCode(client_data.cgi_executor->getErrorType()));
@@ -862,8 +883,6 @@ void	Cluster::handleCgiWrite(int cgi_in_fd)
 	}
 	else
 	{
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return;
 		Logger::error("CGI write error on pipe " + std::to_string(cgi_in_fd));
 		removeFD(cgi_in_fd);
 		if (_fd_table.count(client_fd) && _fd_table.at(client_fd).cgi_executor)

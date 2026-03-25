@@ -28,6 +28,9 @@ std::vector<ServerConfig> Config::parse(){
 
 ServerConfig Config::parseServer() {
 	ServerConfig config;
+	config.port = 0;
+	config.client_max_body_size = 1024 * 1024;
+	config.client_timeout = 60;
 	config.session_timeout = 300;
 	if (_pos >= _tokens.size() || _tokens[_pos++] != "server")
 		throw std::runtime_error("Parser error: expected 'server'");
