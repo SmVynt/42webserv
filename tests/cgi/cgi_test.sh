@@ -226,11 +226,6 @@ test_cgi "CGI Echo (POST)" "/cgi-bin/python/echo.py" "200" "You posted: testdata
 echo ""
 echo "Test 3: CGI Error Handling"
 test_cgi "CGI Not Found" "/cgi-bin/python/nonexistent.py" "404" ""
-test_cgi "CGI Not Found" "/cgi-bin/python/nonexis.py" "404" ""
-test_cgi "CGI Not Found" "/cgi-bin/python/nonexiasd.py" "404" ""
-test_cgi "CGI Not Found" "/cgi-bin/python/none12.py" "404" ""
-test_cgi "CGI Not Found" "/cgi-bin/python/naa12.py" "404" ""
-test_cgi "CGI Not Found" "/cgi-bin/python/nofy+.py" "404" ""
 test_cgi "CGI Script Error" "/cgi-bin/python/error.py" "500" ""
 
 echo ""
@@ -242,11 +237,11 @@ echo ""
 echo ""
 echo "Test 5: Multiple Workers"
 test_multiple_workers "CGI Echo with 10 Workers" "/cgi-bin/python/echo.py"
-# test_multiple_workers "CGI Echo with 20 Workers (Small POST)" "/cgi-bin/python/echo.py" 10000 20
-# # test_multiple_workers "CGI Echo with 100 Workers" "/cgi-bin/python/echo.py" 1000000 100
-# test_multiple_workers "CGI Echo with 20 Workers (Large POST)" "/cgi-bin/python/echo.py" 5000000 20
-# # test_multiple_workers "CGI Echo with 20 Workers (Very Large POST)" "/cgi-bin/python/echo.py" 10000000 20
-# test_multiple_workers "CGI Youpi" "/directory/youpi.bla" 10000000 20
+test_multiple_workers "CGI Echo with 20 Workers (Small POST)" "/cgi-bin/python/echo.py" 10000 20
+# test_multiple_workers "CGI Echo with 100 Workers" "/cgi-bin/python/echo.py" 1000000 100
+test_multiple_workers "CGI Echo with 20 Workers (Large POST)" "/cgi-bin/python/echo.py" 5000000 20
+# test_multiple_workers "CGI Echo with 20 Workers (Very Large POST)" "/cgi-bin/python/echo.py" 10000000 20
+test_multiple_workers "CGI Youpi" "/directory/youpi.bla" 10000000 20
 
 echo "=========================================="
 echo "Summary"

@@ -809,11 +809,7 @@ void Cluster::handleCgiEnd(int cgi_fd)
 
 		if (client_data.cgi_executor)
 		{
-			// Race-proof: pipe EOF can happen slightly before the child is reapable by waitpid(WNOHANG).
-			// Try a few bounded times so we don't keep the parsed 502 from parseCgiOutput() when the real CGI error is known.
 			int cgi_state = client_data.cgi_executor->isComplete();
-			for (int tries = 0; cgi_state != 1 && tries < 5; ++tries)
-				cgi_state = client_data.cgi_executor->isComplete();
 			if (client_data.cgi_executor->hasError() ||
 				(cgi_state == 1 && client_data.cgi_executor->getExitStatus() != 0)) {
 				Logger::error("Error code: " + CGIError::getStatusMessage(client_data.cgi_executor->getErrorType()));
