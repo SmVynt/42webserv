@@ -806,8 +806,9 @@ void Cluster::handleCgiEnd(int cgi_fd)
 
 		if (client_data.cgi_executor)
 		{
-			client_data.cgi_executor->isComplete();
-			if (client_data.cgi_executor->hasError() || client_data.cgi_executor->getExitStatus() != 0) {
+			int cgi_state = client_data.cgi_executor->isComplete();
+			if (client_data.cgi_executor->hasError() ||
+				(cgi_state == 1 && client_data.cgi_executor->getExitStatus() != 0)) {
 				Logger::error("Error code: " + CGIError::getStatusMessage(client_data.cgi_executor->getErrorType()));
 				client_data.response.setBody(CGIError::getStatusMessage(client_data.cgi_executor->getErrorType()));
 				client_data.response.setStatusCode(CGIError::getStatusCode(client_data.cgi_executor->getErrorType()));

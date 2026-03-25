@@ -112,7 +112,7 @@ test_cgi() {
 
     local curl_err
     if [ "$method" = "POST" ]; then
-        response=$(curl $CURL_OPTS -X POST -d "$post_data" -w "\n%{http_code}" "$SERVER_URL$path" 2>&1) || curl_err=$?
+        response=$(curl $CURL_OPTS -H "Expect:" -X POST -d "$post_data" -w "\n%{http_code}" "$SERVER_URL$path" 2>&1) || curl_err=$?
     else
         response=$(curl $CURL_OPTS -w "\n%{http_code}" "$SERVER_URL$path" 2>&1) || curl_err=$?
     fi
@@ -167,7 +167,7 @@ test_multiple_workers() {
         (
             echo "    Worker $i: Sending POST request with $post_size bytes..."
             dd if=/dev/urandom bs=1 count="$post_size" 2>/dev/null | \
-            curl $CURL_OPTS -X POST --data-binary @- -w "\n%{http_code} %{size_download}" "$SERVER_URL$path" > "$tmpdir/worker_$i.out" 2>"$tmpdir/worker_$i.err"
+            curl $CURL_OPTS -H "Expect:" -X POST --data-binary @- -w "\n%{http_code} %{size_download}" "$SERVER_URL$path" > "$tmpdir/worker_$i.out" 2>"$tmpdir/worker_$i.err"
         ) &
         pids+=("$!")
 		sleep 0.05  # Stagger worker start times slightly
