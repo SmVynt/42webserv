@@ -778,10 +778,7 @@ void	Cluster::handleCgiRead(int cgi_fd)
 	else
 	{
 		Logger::error("CGI read error on pipe " + std::to_string(cgi_fd));
-		// handleCgiEnd(cgi_fd);
-		// Non-blocking pipes can temporarily fail even after poll() (e.g. POLLHUP path).
-		// Don't finalize CGI parsing here; wait for the next readable/EOF event.
-		return;
+		handleCgiEnd(cgi_fd);
 	}
 }
 
@@ -887,12 +884,9 @@ void	Cluster::handleCgiWrite(int cgi_in_fd)
 	else
 	{
 		Logger::error("CGI write error on pipe " + std::to_string(cgi_in_fd));
-		// removeFD(cgi_in_fd);
-		// if (_fd_table.count(client_fd) && _fd_table.at(client_fd).cgi_executor)
-		// 	_fd_table.at(client_fd).cgi_executor->detachPipeFd(cgi_in_fd);
-		// Non-blocking pipes can temporarily fail; don't finalize/close here.
-		// The next POLLOUT will retry writing.
-		return;
+		removeFD(cgi_in_fd);
+		if (_fd_table.count(client_fd) && _fd_table.at(client_fd).cgi_executor)
+			_fd_table.at(client_fd).cgi_executor->detachPipeFd(cgi_in_fd);
 	}
 }
 
