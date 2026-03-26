@@ -16,11 +16,24 @@ bool	Request::isFinished() const { return _state == DONE || _state == ERROR; }
 
 void	Request::setMaxBodySize(const unsigned long &num) { _max_body_size = num; }
 
-const std::string	&Request::getBody() const {return _body; }
-std::string	Request::getMethod() const {return _method; }
-std::string	Request::getHttpVersion() const {return _http_version; }
-std::string	Request::getPath() const {return _path; }
-std::map<std::string, std::string>	Request::getHeaders() const {return _headers; }
+const std::string	&Request::getBody() const { return _body; }
+
+std::string	Request::getMethod() const { return _method; }
+
+std::string	Request::getHttpVersion() const { return _http_version; }
+
+std::string	Request::getPath() const { return _path; }
+
+std::map<std::string, std::string>	Request::getHeaders() const { return _headers; }
+
+Request::State	Request::getState() const { return _state; }
+
+int		Request::getErrorCode() const { return _error_code; }
+
+std::string	Request::getClientIP() const { return _client_ip; }
+
+void		Request::setClientIP(const std::string &ip) { _client_ip = ip; }
+
 std::string	Request::getHeaders(const std::string& key) const
 {
 	auto it = _headers.find(key);
@@ -28,8 +41,6 @@ std::string	Request::getHeaders(const std::string& key) const
 		return "";
 	return it->second;
 }
-Request::State	Request::getState() const { return _state; }
-int		Request::getErrorCode() const { return _error_code; }
 
 void	Request::consume(const std::string &new_chunk){
 	consume(new_chunk.data(), new_chunk.size());
@@ -44,7 +55,6 @@ void	Request::consume(const char *new_chunk, size_t chunk_size){
 	}
 
 	while (_state != ERROR && _state != DONE){
-		// std::cout << _raw_storage << std::endl;
 		if (_state == METHOD_LINE){
 			size_t pos = _raw_storage.find("\r\n");
 			if (pos == std::string::npos)
@@ -86,7 +96,6 @@ void	Request::consume(const char *new_chunk, size_t chunk_size){
 						if (_content_length <= (64UL * 1024UL * 1024UL))
 							_body.reserve(_content_length);
 					} catch (...) {
-						// Fallback to incremental growth without crashing the server
 					}
 					_state = (_content_length == 0) ? DONE : BODY;
 				}
@@ -103,7 +112,6 @@ void	Request::consume(const char *new_chunk, size_t chunk_size){
 				_error_code = 400;
 				break;
 			}
-
 			size_t remaining = _content_length - _body.size();
 			size_t to_copy = std::min(remaining, _raw_storage.size());
 			if (to_copy > 0) {
@@ -148,7 +156,8 @@ void	Request::consume(const char *new_chunk, size_t chunk_size){
 
 void Request::parseHeaders(const std::string &line) {
 	size_t pos = line.find(":");
-	if (pos == std::string::npos) return;
+	if (pos == std::string::npos)
+		return;
 
 	std::string key = line.substr(0, pos);
 	std::string value = line.substr(pos + 1);
@@ -237,7 +246,3 @@ bool	Request::needsContinue() {
 	}
 	return false;
 }
-
-std::string	Request::getClientIP() const { return _client_ip; }
-
-void		Request::setClientIP(const std::string &ip) { _client_ip = ip; }
