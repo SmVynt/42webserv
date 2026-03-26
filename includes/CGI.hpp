@@ -50,6 +50,7 @@ class CGIexecutor {
 		 * @brief Creates an executor from parsed CGI request data.
 		 */
 		CGIexecutor(const CGIconfig &config);
+
 		/**
 		 * @brief Ensures child process and owned FDs are cleaned up.
 		 */
@@ -66,20 +67,24 @@ class CGIexecutor {
 		 * @return 0 on success, non-zero on startup failure.
 		 */
 		int				start();
-		void			setComplete(bool complete);
+
 		/**
 		 * @brief Polls child status using non-blocking waitpid().
 		 * @return 1 finished, 0 running, -1 on error.
 		 */
 		int				isComplete();
+
 		int				getOutputFd() const;
 		int				getInputFd() const;
 		int				getExitStatus() const;
 		std::string		getOutput() const;
+		void			setComplete(bool complete);
+
 		/**
 		 * @brief Terminates CGI child and closes owned pipe FDs.
 		 */
 		void			killChildProcess();
+		
 		/**
 		 * @brief Detaches a pipe FD from executor ownership.
 		 */
