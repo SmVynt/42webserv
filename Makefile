@@ -10,8 +10,7 @@ INC_DIR			= includes/
 SRC_DIR			= srcs/
 
 CORE_SRCS	= main.cpp \
-				core/Cluster.cpp \
-				core/VirtualServer.cpp
+				core/Cluster.cpp
 PARSER_SRCS	= parser/Config.cpp \
 				parser/Request.cpp \
 				parser/parserUtils.cpp

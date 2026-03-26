@@ -1,5 +1,7 @@
 #include "Cluster.hpp"
 
+static const size_t			RECV_BUFFER_SIZE		= 65536;
+
 // ============================================================================
 // Lifecycle
 // ============================================================================
@@ -247,7 +249,6 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	metadata.last_activity = time(NULL);
 	metadata.timeout_value = timeout;
 	metadata.timeout_reading_value = 30;
-	metadata.is_ready_to_close = false;
 	metadata.needs_continue = false;
 	metadata.cgi_executor = nullptr;
 	metadata.session_ptr = nullptr;

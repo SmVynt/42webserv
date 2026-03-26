@@ -16,7 +16,6 @@
 #include <algorithm>
 #include "Request.hpp"
 #include "Response.hpp"
-#include "VirtualServer.hpp"
 #include "utils.hpp"
 #include "Logger.hpp"
 #include "Methods.hpp"
@@ -24,23 +23,18 @@
 #include "CGI.hpp"
 #include "Session.hpp"
 
-class CGIexecutor;
-// Default value
-static const size_t			RECV_BUFFER_SIZE		= 65536;
 
 enum FDType{
 	FD_LISTENER,	// Listening socket: accepts new incoming connections
 	FD_CLIENT,		// Client socket: handles HTTP requests and responses
 	FD_CGI_IN,		// CGI input pipe: used to write POST body to the script's stdin
-	FD_CGI_OUT,		// CGI output pipe: used to read the script's execution result
-	FD_FILE			// Static file: used for non-blocking file I/O operations
+	FD_CGI_OUT		// CGI output pipe: used to read the script's execution result
 };
 
 enum ClientState{
 	STATE_READING,
 	STATE_PROCESSING,
-	STATE_WRITING,
-	STATE_DONE
+	STATE_WRITING
 };
 
 struct FDMetadata{
@@ -68,7 +62,6 @@ struct FDMetadata{
 	Session*		session_ptr;		// Pointer to the session object associated with this client
 	bool			is_new_session;		// True if a new session was created for this request
 
-	bool			is_ready_to_close;	// Flag to mark the descriptor for removal from the loop
 	bool			needs_continue;		// Send "100 Continue" when POLLOUT is ready
 };
 class Cluster {
@@ -120,17 +113,12 @@ class Cluster {
 		void handleCgiWrite(int cgi_in_fd);
 		void handleCgiEnd(int cgi_fd);
 
-		std::vector<VirtualServer>	_servers;
 		std::vector<ServerConfig>	_config_data;
 		std::vector<struct pollfd>	_pollfds;
 		std::map<int, FDMetadata>	_fd_table;
 		uint64_t					_fd_generation;
-		// Map for socket connection between configs or servers
 		std::map<int, int>			_listen_sockets;
-		// bool						_shutdown;
 		volatile sig_atomic_t		_shutdown;
-		// vector of active sessions for cookie management
-		// std::vector<Session>		_active_sessions;
 		std::map<std::string, Session>		_active_sessions;
 };
 
