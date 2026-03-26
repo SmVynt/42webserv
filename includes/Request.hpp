@@ -1,5 +1,4 @@
-#ifndef REQUEST_HPP
-# define REQUEST_HPP
+#pragma once
 
 #include <string>
 #include <map>
@@ -106,8 +105,3 @@ public:
 
 
 };
-
-// void reqHardcode();
-// void reqChunkedHardcode();
-
-#endif
