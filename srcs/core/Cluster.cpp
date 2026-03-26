@@ -13,6 +13,8 @@ Cluster::Cluster(const std::vector<ServerConfig>& config)
 
 Cluster::~Cluster()
 {
+	// First pass: kill CGI children before closing pipes,
+	// otherwise executors may write to already-closed FDs
 	for (auto& [fd, meta] : _fd_table)
 	{
 		if (meta.cgi_executor)
@@ -22,6 +24,7 @@ Cluster::~Cluster()
 			meta.cgi_executor = nullptr;
 		}
 	}
+	// Second pass: snapshot FDs then close — removeFD() mutates _pollfds
 	std::vector<int> fds_to_close;
 	for (const auto& pfd : _pollfds)
 	{
@@ -43,6 +46,7 @@ void Cluster::setupCluster()
 	_fd_table.clear();
 	_listen_sockets.clear();
 
+	// Multiple server blocks may share the same host:port — deduplicate
 	std::set<std::pair<std::string, int>> bound_addresses;
 
 	int error_code = 0;
@@ -60,6 +64,7 @@ void Cluster::setupCluster()
 			error_code = errno;
 			throw std::runtime_error("Socket creation failed: " + std::string(strerror(error_code)));
 		}
+		// SO_REUSEADDR lets us rebind immediately after restart without TIME_WAIT
 		int option = 1;
 		if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0)
 		{
@@ -125,18 +130,24 @@ void Cluster::run()
 	std::vector<PollEvent> events;
 
 	while (!_shutdown){
+		// Compact dead entries (fd == -1) left by removeFD / removeFDNoClose
 		_pollfds.erase(
 			std::remove_if(_pollfds.begin(), _pollfds.end(),
 				[](const pollfd& p){ return p.fd < 0; }),
 			_pollfds.end());
 
+		// 1 s timeout: guarantees periodic handleTimeout() even with no traffic
 		int ret = poll(_pollfds.data(), _pollfds.size(), 1000);
 		if (ret < 0){
+			// EINTR: signal (e.g. SIGINT) interrupted poll — safe to retry
 			if (errno == EINTR)
 				continue;
 			throw std::runtime_error("Poll filed: " + std::string(strerror(errno)));
 		}
 
+		// Snapshot events with generation stamps before dispatching.
+		// Handlers may close/add FDs mid-iteration; the snapshot ensures we
+		// never process a stale event from a recycled FD number.
 		events.clear();
 		for (const auto& pfd : _pollfds){
 			if (pfd.fd >= 0 && pfd.revents != 0) {
@@ -151,6 +162,7 @@ void Cluster::run()
 			int fd = ev.fd;
 			short revents = ev.revents;
 
+			// FD may have been removed by a previous handler in this iteration
 			auto meta_it = _fd_table.find(fd);
 			if (meta_it == _fd_table.end())
 			{
@@ -162,6 +174,7 @@ void Cluster::run()
 				}
 				continue;
 			}
+			// Generation mismatch: this FD number was recycled since the snapshot
 			if (meta_it->second.generation != ev.gen)
 				continue;
 
@@ -178,6 +191,7 @@ void Cluster::run()
 			updateActivity(fd);
 
 			if (revents & POLLIN){
+				// Re-lookup: previous POLLERR/POLLNVAL handler may have removed this FD
 				auto it = _fd_table.find(fd);
 				if (it == _fd_table.end())
 					continue;
@@ -208,6 +222,7 @@ void Cluster::run()
 			}
 
 			if (revents & POLLHUP){
+				// CGI_OUT: child closed stdout — drain remaining data before finalising
 				auto it_hup = _fd_table.find(fd);
 				if (it_hup != _fd_table.end()){
 					if (it_hup->second.type == FD_CGI_OUT)
@@ -228,6 +243,7 @@ void Cluster::run()
 
 void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 {
+	// Subject requirement: every FD must be non-blocking (poll-driven I/O only)
 	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0){
 		Logger::error("fcntl(O_NONBLOCK) failed for FD " + std::to_string(fd)
 			+ ": " + std::string(strerror(errno)));
@@ -241,6 +257,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 	_pollfds.push_back(pfd);
 
 	FDMetadata metadata = {};
+	// Monotonic generation counter — prevents stale event dispatch after FD reuse
 	metadata.generation = ++_fd_generation;
 	metadata.fd = fd;
 	metadata.type = type;
@@ -261,6 +278,7 @@ void Cluster::addFD(int fd, FDType type, int client_ref, int timeout)
 
 void Cluster::removeFD(int fd)
 {
+	// Mark as -1 for lazy compaction at the start of the next poll() iteration
 	for (auto& pfd : _pollfds)
 		if (pfd.fd == fd)
 			pfd.fd = -1;
@@ -298,11 +316,13 @@ void Cluster::handleTimeout()
 	time_t now = time(NULL);
 	std::vector<int> fd_to_close;
 
+	// Can't close inside iteration (invalidates map iterators) — collect first
 	for (auto& [fd, metadata] : _fd_table){
 		if (metadata.type == FD_LISTENER)
 			continue;
 		if (metadata.timeout_value <= 0)
 			continue;
+		// Two timeout tiers: general (any FD) and stricter reading-only (408)
 		if (now - metadata.last_activity > metadata.timeout_value){
 			Logger::info("Timeout [FD " + std::to_string(fd) + "]");
 			fd_to_close.push_back(fd);
@@ -349,6 +369,7 @@ void Cluster::acceptNewConnection(int listen_fd)
 	int client_fd = accept(listen_fd, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
 
 	if (client_fd < 0){
+		// Spurious wakeup: poll() reported POLLIN but no pending connection
 		if (errno == EWOULDBLOCK || errno == EAGAIN)
 			return;
 		std::cerr << "Warning: accept() failed: " << strerror(errno) << std::endl;
@@ -410,6 +431,7 @@ void Cluster::closeConnection(int fd)
 		return;
 	}
 
+	// Branch 1: closing a CGI pipe — notify the owning client with 504
 	if (it->second.type == FD_CGI_OUT || it->second.type == FD_CGI_IN)
 	{
 		int client_fd = it->second.client_fd;
@@ -420,6 +442,7 @@ void Cluster::closeConnection(int fd)
 			FDMetadata& cl = _fd_table.at(client_fd);
 			if (cl.cgi_executor)
 			{
+				// NoClose: executor destructor owns the underlying pipe FDs
 				for (int p : orphan_pipes)
 					removeFDNoClose(p);
 				cl.cgi_executor->killChildProcess();
@@ -438,10 +461,12 @@ void Cluster::closeConnection(int fd)
 		}
 		else
 		{
+			// Client already gone — just clean up the orphan pipes
 			for (int p : orphan_pipes)
 				removeFD(p);
 		}
 	}
+	// Branch 2: closing a client FD — must tear down any running CGI first
 	else
 	{
 		if (it->second.type == FD_CLIENT && it->second.cgi_executor != nullptr)
@@ -463,6 +488,8 @@ void Cluster::resetConnection(int fd)
 {
 	FDMetadata& data = _fd_table.at(fd);
 
+	// Save socket-level fields that must survive keep-alive reset —
+	// replacing Request/Response would destroy them
 	int saved_port = data.port;
 	int saved_timeout = data.timeout_value;
 	int saved_config = data.config_index;
@@ -502,6 +529,7 @@ bool Cluster::handleClientRequest(int fd)
 		data.request.consume(buffer, static_cast<size_t>(byte_reads));
 
 		if (!data.request.isFinished()) {
+			// RFC 7231 §5.1.1: respond with "100 Continue" before the client sends the body
 			if (data.request.needsContinue()) {
 				data.needs_continue = true;
 				updatePollEvents(fd, POLLOUT);
@@ -512,6 +540,7 @@ bool Cluster::handleClientRequest(int fd)
 		processCompletedRequest(fd, data);
 		return false;
 	}
+	// recv() == 0 means clean TCP FIN — client closed the connection
 	if (byte_reads == 0){
 		Logger::info("Client closed connection [FD " + std::to_string(fd) + "]");
 		closeConnection(fd);
@@ -534,11 +563,13 @@ void Cluster::processCompletedRequest(int fd, FDMetadata& data)
 		return;
 	}
 
+	// RFC 7230 §5.4: Host header may include port — strip it for name matching
 	std::string host = data.request.getHeaders("host");
 	size_t colon = host.find(':');
 	if (colon != std::string::npos)
 		host = host.substr(0, colon);
 
+	// Virtual hosting: pick the server block whose server_name matches Host
 	int resolved = resolveServerConfig(data.port, host);
 	if (resolved >= 0)
 		data.config_index = resolved;
@@ -556,6 +587,7 @@ void Cluster::processCompletedRequest(int fd, FDMetadata& data)
 	Logger::debug("resolveLocation returned loc=" + std::string(loc ? "found" : "nullptr"));
 	if (loc)
 		Logger::debug("location path='" + loc->path + "'");
+	// Location-level body limit overrides the server-level default
 	if (loc && loc->client_max_body_size.has_value())
 		data.request.setMaxBodySize(loc->client_max_body_size.value());
 	else if (loc)
@@ -577,6 +609,8 @@ bool Cluster::validateBodySize(int fd, FDMetadata& data, const Location* loc, co
 		: config.client_max_body_size;
 	unsigned long body_size = data.request.getBody().size();
 
+	// Content-Length may declare more data than already received (streaming) —
+	// reject early before the full body arrives
 	if (data.request.getHeaders().count("content-length")) {
 		try {
 			unsigned long cl = std::stoul(data.request.getHeaders("content-length"));
@@ -617,9 +651,11 @@ void Cluster::launchCgiRequest(int fd, FDMetadata& data, const Location& loc, co
 	else
 	{
 		data.client_state = STATE_PROCESSING;
+		// Register CGI stdout pipe for reading
 		int pipe_out = data.cgi_executor->getOutputFd();
 		addFD(pipe_out, FD_CGI_OUT, fd, config.client_timeout);
 		_fd_table[pipe_out].session_ptr = data.session_ptr;
+		// Register CGI stdin pipe for writing POST body (if present)
 		int pipe_in = data.cgi_executor->getInputFd();
 		if (pipe_in >= 0)
 		{
@@ -627,6 +663,7 @@ void Cluster::launchCgiRequest(int fd, FDMetadata& data, const Location& loc, co
 			_fd_table[pipe_in].session_ptr = data.session_ptr;
 			updatePollEvents(pipe_in, POLLOUT);
 		}
+		// Suspend client FD — no direct I/O until CGI completes
 		updatePollEvents(fd, 0);
 	}
 }
@@ -638,6 +675,7 @@ void Cluster::handleStaticRequest(int fd, FDMetadata& data, const ServerConfig& 
 	Logger::warning("Status code" + std::to_string(data.response.getStatusCode()));
 	if (data.response.getStatusCode() != 200 && data.response.getStatusCode() != 201)
 		data.response = generateErrorResponse(data.response.getStatusCode(), data.config_index);
+	// RFC 7231 §4.3.2: HEAD response must have no body but keep Content-Length
 	if (data.request.getMethod() == "HEAD")
 		data.response.setBody("");
 	if (data.is_new_session)
@@ -668,6 +706,7 @@ int Cluster::resolveServerConfig(int port, const std::string& host)
 
 void Cluster::resolveSession(FDMetadata& data)
 {
+	// Parse "session_id=<value>" from the Cookie header (RFC 6265)
 	std::string cookie_header = data.request.getHeaders("cookie");
 	std::string session_id;
 
@@ -690,6 +729,7 @@ void Cluster::resolveSession(FDMetadata& data)
 		session->touch();
 	}
 	data.session_id = session_id;
+	// Safe: std::map guarantees pointer/reference stability after insert
 	data.session_ptr = &_active_sessions.at(session_id);
 }
 
@@ -709,8 +749,10 @@ bool Cluster::handleClientResponse(int fd)
 {
 	FDMetadata& data = _fd_table.at(fd);
 
+	// Respond to "Expect: 100-continue" before switching back to POLLIN for the body
 	if (data.needs_continue) {
 		static const char cont[] = "HTTP/1.1 100 Continue\r\n\r\n";
+		// MSG_NOSIGNAL: prevent SIGPIPE if client already disconnected (Linux)
 		send(fd, cont, sizeof(cont) - 1, MSG_NOSIGNAL);
 		data.needs_continue = false;
 		updatePollEvents(fd, POLLIN);
@@ -777,6 +819,7 @@ void Cluster::handleCgiRead(int cgi_fd)
 {
 	FDMetadata& cgi_data = _fd_table.at(cgi_fd);
 
+	// Orphan pipe: client disconnected while CGI was still running
 	if (_fd_table.find(cgi_data.client_fd) == _fd_table.end())
 	{
 		removeFD(cgi_fd);
@@ -795,6 +838,7 @@ void Cluster::handleCgiRead(int cgi_fd)
 		if (session)
 			session->touch();
 	}
+	// read() == 0: child closed stdout (EOF) — finalise the CGI response
 	else if (bytes == 0)
 	{
 		if (cgi_data.cgi_executor) {
@@ -837,9 +881,11 @@ void Cluster::handleCgiWrite(int cgi_in_fd)
 		Session* session = pipe_data.session_ptr;
 		if (session)
 			session->touch();
+		// All bytes written: close pipe to signal EOF to child's stdin
 		if (pipe_data.cgi_write_offset >= body.size())
 		{
 			removeFD(cgi_in_fd);
+			// Detach so executor won't double-close this FD in its destructor
 			if (_fd_table.count(client_fd) && _fd_table.at(client_fd).cgi_executor)
 				_fd_table.at(client_fd).cgi_executor->detachPipeFd(cgi_in_fd);
 		}
@@ -867,6 +913,7 @@ void Cluster::handleCgiEnd(int cgi_fd)
 		return;
 
 	int client_fd = cgi_it->second.client_fd;
+	// Copy raw output before pipe cleanup — removeFDNoClose erases the metadata
 	std::string raw_output = cgi_it->second.cgi_raw_output;
 
 	std::vector<int> cgi_pipes = collectCgiPipes(client_fd);
@@ -877,6 +924,7 @@ void Cluster::handleCgiEnd(int cgi_fd)
 
 		client_data.response = RequestHandler::parseCgiOutput(raw_output);
 
+		// Check if CGI child exited with non-zero status or internal error
 		if (client_data.cgi_executor)
 		{
 			int cgi_state = client_data.cgi_executor->isComplete();
