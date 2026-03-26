@@ -87,30 +87,38 @@ class Cluster {
 		// Session and cookie management
 		Session*	findSessionById(const std::string& sessionId);
 	private:
-		// Utils for run()
-		void acceptNewConnection(int listen_fd);
-		bool handleClientRequest(int fd);
-		void closeConnection(int fd);
-		void updatePollEvents(int fd, short events);
-		bool handleClientResponse(int fd);
-		int resolveServerConfig(int port, const std::string& host);
-		void	resolveSession(FDMetadata &data);
-
-		// Utils for pollfds management and metadata
+		// FD management
 		void addFD(int fd, FDType type, int client_ref, int timeout);
 		void removeFD(int fd);
 		void removeFDNoClose(int fd);
+		void updatePollEvents(int fd, short events);
 		void updateActivity(int fd);
 		void handleTimeout();
+		void cleanupExpiredSessions();
+
+		// Connection management
+		void acceptNewConnection(int listen_fd);
+		std::vector<int> collectCgiPipes(int client_fd);
+		void closeConnection(int fd);
 		void resetConnection(int fd);
 
-		void handleCgiRead(int cgi_fd);
-		void handleCgiEnd(int cgi_fd);
-		void handleCgiWrite(int cgi_in_fd);
+		// Request processing
+		bool handleClientRequest(int fd);
+		void processCompletedRequest(int fd, FDMetadata& data);
+		bool validateBodySize(int fd, FDMetadata& data, const Location* loc, const ServerConfig& config);
+		void launchCgiRequest(int fd, FDMetadata& data, const Location& loc, const ServerConfig& config);
+		void handleStaticRequest(int fd, FDMetadata& data, const ServerConfig& config);
+		int resolveServerConfig(int port, const std::string& host);
+		void resolveSession(FDMetadata& data);
 
-
-		// Response
+		// Response handling
+		bool handleClientResponse(int fd);
 		Response generateErrorResponse(int code, int config_index);
+
+		// CGI pipeline
+		void handleCgiRead(int cgi_fd);
+		void handleCgiWrite(int cgi_in_fd);
+		void handleCgiEnd(int cgi_fd);
 
 		std::vector<VirtualServer>	_servers;
 		std::vector<ServerConfig>	_config_data;
