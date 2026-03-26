@@ -18,7 +18,9 @@
 # include "Logger.hpp"
 # include "Config.hpp"
 
-// CGIconfig class for storing CGI configuration
+/**
+ * @brief Immutable input bundle used to construct a CGI executor.
+ */
 class CGIconfig {
 	public:
 		std::string			script_path;
@@ -26,17 +28,31 @@ class CGIconfig {
 		std::string			query_string;
 		const ServerConfig	&_config;
 
+		/**
+		 * @brief Builds a CGI configuration context for one request.
+		 */
 		CGIconfig(const std::string &path,
 				  const std::string &uri,
 				  const std::string &query,
 				  const ServerConfig &config);
+		/**
+		 * @brief Destroys the configuration wrapper.
+		 */
 		~CGIconfig();
 };
 
-// CGIexecutor class for executing CGI scripts
+/**
+ * @brief Launches and manages one CGI child process lifecycle.
+ */
 class CGIexecutor {
 	public:
+		/**
+		 * @brief Creates an executor from parsed CGI request data.
+		 */
 		CGIexecutor(const CGIconfig &config);
+		/**
+		 * @brief Ensures child process and owned FDs are cleaned up.
+		 */
 		~CGIexecutor();
 
 		void			setQuery(const std::string &query);
@@ -45,14 +61,28 @@ class CGIexecutor {
 		void			setEnvKey(const std::string &key, const std::string &value);
 		void			setEnvKeySafe(const std::string &key, const std::string &value);
 
+		/**
+		 * @brief Creates pipes, forks, and starts CGI execution.
+		 * @return 0 on success, non-zero on startup failure.
+		 */
 		int				start();
 		void			setComplete(bool complete);
+		/**
+		 * @brief Polls child status using non-blocking waitpid().
+		 * @return 1 finished, 0 running, -1 on error.
+		 */
 		int				isComplete();
 		int				getOutputFd() const;
 		int				getInputFd() const;
 		int				getExitStatus() const;
 		std::string		getOutput() const;
+		/**
+		 * @brief Terminates CGI child and closes owned pipe FDs.
+		 */
 		void			killChildProcess();
+		/**
+		 * @brief Detaches a pipe FD from executor ownership.
+		 */
 		void			detachPipeFd(int fd);
 
 		CGIError::Type	getErrorType() const;
@@ -74,11 +104,30 @@ class CGIexecutor {
 		bool 								_is_complete;
 		CGIError::Type						_error_type;
 
+		/**
+		 * @brief Validates script availability/executability in child.
+		 */
 		void		childCheckCgiPath();
+		
+		/**
+		 * @brief Wires CGI stdin/stdout to pipes in child process.
+		 */
 		void		childResolvePipes(int pipe_in[2], int pipe_out[2]);
+
+		/**
+		 * @brief Resolves interpreter path after child chdir() logic.
+		 */
 		std::string	childResolvedInterpreterPath(const std::string& config_cgi_path,
 						const std::string& script_path);
+
+		/**
+		 * @brief Child-side execution path ending in execve().
+		 */
 		void		runChild(int pipe_in[2], int pipe_out[2]);
+
+		/**
+		 * @brief Populates CGI environment variables from request/config.
+		 */
 		void		setupEnvironment();
 };
 
