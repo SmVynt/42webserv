@@ -43,15 +43,6 @@ std::string	CGIError::getStatusMessage(Type errorType) {
 	}
 };
 
-// std::string	CGIError::getErrorPage(Type errorType) {
-// 	int statusCode = getStatusCode(errorType);
-// 	std::string statusMessage = getStatusMessage(errorType);
-// 	return "<html><head><title>" + std::to_string(statusCode) + " " + statusMessage + "</title></head>"
-// 			"<body><h1>" + std::to_string(statusCode) + " " + statusMessage + "</h1>"
-// 			"<p>An error occurred while processing your request.</p></body></html>";
-// };
-
-
 CGIError::Type	CGIError::getErrorFromExit(int exitCode) {
 	switch (exitCode) {
 		case 0:
