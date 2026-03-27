@@ -1,5 +1,6 @@
 #include "cgiError.hpp"
 
+// Maps internal CGI executor failures to the HTTP status sent to the client.
 int CGIError::getStatusCode(Type errorType) {
 	switch (errorType) {
 		case NO_ERROR:
@@ -44,6 +45,7 @@ std::string	CGIError::getStatusMessage(Type errorType) {
 };
 
 CGIError::Type	CGIError::getErrorFromExit(int exitCode) {
+	// 52..59 are project-specific CGI child exit codes (see getExitFromError).
 	switch (exitCode) {
 		case 0:
 			return NO_ERROR;
@@ -68,6 +70,7 @@ CGIError::Type	CGIError::getErrorFromExit(int exitCode) {
 	}
 };
 int 			CGIError::getExitFromError(Type errorType) {
+	// Keep this mapping in sync with getErrorFromExit().
 	switch (errorType) {
 		case NO_ERROR:
 			return 0;

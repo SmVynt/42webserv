@@ -56,6 +56,7 @@ void	CGIexecutor::setPostDataSize(size_t data_size) {
 }
 
 void	CGIexecutor::setHttpHeader(const std::string &name, const std::string &value) {
+	// HTTP headers become HTTP_<NAME> with dashes as underscores, uppercased.
 	std::string cgi_name = "HTTP_" + name;
 	for (size_t i = 0; i < cgi_name.length(); ++i) {
 		if (cgi_name[i] == '-')
@@ -71,6 +72,7 @@ void	CGIexecutor::setEnvKey(const std::string &key, const std::string &value) {
 }
 
 void	CGIexecutor::setEnvKeySafe(const std::string &key, const std::string &value) {
+	// Unlike setEnvKey, this won't overwrite a value already set by the request headers.
 	if (_env_vars.find(key) == _env_vars.end()) {
 		_env_vars[key] = value;
 	}
@@ -105,7 +107,8 @@ void	CGIexecutor::setupEnvironment() {
 //****************************************************//
 
 void	CGIexecutor::childCheckCgiPath() {
-	// Check if the script exists and is executable
+	// POST skipped: the 42 tester expects only the interpreter to be executable for POST,
+	// not the script itself (the interpreter receives the script as an argument).
 	if (_env_vars["REQUEST_METHOD"] != "POST") {
 		if (access(_script_path.c_str(), F_OK) != 0) {
 			Logger::error("CGI script not found: " + _script_path);
@@ -178,7 +181,7 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	const char* argv[3];
 	std::string cgi_ext = script_name.substr(script_name.find_last_of('.'));
 	if (cgi_ext == ".sh") {
-		// If the CGI extension is .sh, use the local path
+		// Shell scripts are self-executable via their shebang; no separate interpreter needed.
 		std::string local_path = "./" + script_name;
 		argv[0] = local_path.c_str();
 		argv[1] = nullptr;
@@ -242,6 +245,7 @@ int	CGIexecutor::start() {
 	if (_child_pid == 0)
 		runChild(pipe_in, pipe_out);
 
+	// Close the child-side ends that the parent doesn't use.
 	safeClose(pipe_in[0]);
 	safeClose(pipe_out[1]);
 
@@ -275,6 +279,7 @@ int	CGIexecutor::start() {
 };
 
 int	CGIexecutor::isComplete() {
+	// Non-blocking check: returns 0 (still running), 1 (exited), or -1 (error/no child).
 	if (_child_pid == -1)
 		return -1;
 
@@ -289,7 +294,7 @@ int	CGIexecutor::isComplete() {
 		if (WIFEXITED(status)) {
 			_exit_status = WEXITSTATUS(status);
 		} else if (WIFSIGNALED(status)) {
-			_exit_status = 128 + WTERMSIG(status); // Signal exit code
+			_exit_status = 128 + WTERMSIG(status); // Shell convention: signal N → exit 128+N
 		} else {
 			_exit_status = -1; // Unknown exit status
 		}
@@ -342,6 +347,7 @@ bool	CGIexecutor::hasError() const {
 	return _error_type != CGIError::NO_ERROR;
 }
 
+// Called by Cluster after it closes a pipe FD itself, so the destructor won't double-close it.
 void	CGIexecutor::detachPipeFd(int fd) {
 	if (_pipe_in_fd == fd)
 		_pipe_in_fd = -1;
