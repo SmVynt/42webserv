@@ -61,6 +61,13 @@ class CGIexecutor {
 		void			setHttpHeader(const std::string &name, const std::string &value);
 		void			setEnvKey(const std::string &key, const std::string &value);
 		void			setEnvKeySafe(const std::string &key, const std::string &value);
+		CGIError::Type	getErrorType() const;
+		bool			hasError() const;
+		int				getOutputFd() const;
+		int				getInputFd() const;
+		int				getExitStatus() const;
+		std::string		getOutput() const;
+		void			setComplete(bool complete);
 
 		/**
 		 * @brief Creates pipes, forks, and starts CGI execution.
@@ -74,24 +81,15 @@ class CGIexecutor {
 		 */
 		int				isComplete();
 
-		int				getOutputFd() const;
-		int				getInputFd() const;
-		int				getExitStatus() const;
-		std::string		getOutput() const;
-		void			setComplete(bool complete);
-
 		/**
 		 * @brief Terminates CGI child and closes owned pipe FDs.
 		 */
 		void			killChildProcess();
-		
+
 		/**
 		 * @brief Detaches a pipe FD from executor ownership.
 		 */
 		void			detachPipeFd(int fd);
-
-		CGIError::Type	getErrorType() const;
-		bool			hasError() const;
 		
 	private:
 		std::string							_script_path;

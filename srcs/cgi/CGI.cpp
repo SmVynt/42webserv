@@ -77,6 +77,7 @@ void	CGIexecutor::setEnvKeySafe(const std::string &key, const std::string &value
 }
 
 void	CGIexecutor::setupEnvironment() {
+	// Set mandatory environment variables
 	_env_vars["GATEWAY_INTERFACE"] = "CGI/1.1";
 	_env_vars["SERVER_PROTOCOL"] = "HTTP/1.1";
 	_env_vars["SERVER_SOFTWARE"] = "webserv/1.0";
@@ -104,6 +105,7 @@ void	CGIexecutor::setupEnvironment() {
 //****************************************************//
 
 void	CGIexecutor::childCheckCgiPath() {
+	// Check if the script exists and is executable
 	if (_env_vars["REQUEST_METHOD"] != "POST") {
 		if (access(_script_path.c_str(), F_OK) != 0) {
 			Logger::error("CGI script not found: " + _script_path);
@@ -117,6 +119,7 @@ void	CGIexecutor::childCheckCgiPath() {
 }
 
 void	CGIexecutor::childResolvePipes(int pipe_in[2], int pipe_out[2]) {
+	// Duplicate the input pipe to stdin
 	if (dup2(pipe_in[0], STDIN_FILENO) == -1) {
 		Logger::error("dup2() failed for stdin");
 		exit(CGIError::getExitFromError(CGIError::PIPE_FAILED));
@@ -132,6 +135,7 @@ void	CGIexecutor::childResolvePipes(int pipe_in[2], int pipe_out[2]) {
 std::string	CGIexecutor::childResolvedInterpreterPath(const std::string& config_cgi_path,
 									const std::string& script_path)
 {
+	// If the config CGI path is empty or starts with a slash, return it
 	if (config_cgi_path.empty() || config_cgi_path[0] == '/')
 		return config_cgi_path;
 	size_t slash = script_path.find_last_of('/');
@@ -139,8 +143,10 @@ std::string	CGIexecutor::childResolvedInterpreterPath(const std::string& config_
 		return config_cgi_path;
 
 	std::string tail = config_cgi_path;
+	// If the tail starts with ./, remove the ./
 	if (tail.length() >= 2 && tail[0] == '.' && tail[1] == '/')
 		tail = tail.substr(2);
+	// Because of chdir(), we need to go up one level to reach the interpreter
 	return (std::string("../") + tail);
 }
 
@@ -148,6 +154,7 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	childCheckCgiPath();
 	childResolvePipes(pipe_in, pipe_out);
 
+	// Get the script name from the script path
 	std::string script_name = _script_path;
 	size_t last_slash = _script_path.find_last_of('/');
 	if (last_slash != std::string::npos) {
@@ -157,6 +164,7 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 			chdir(dir.c_str());
 	}
 
+	// Create the environment variables
 	std::vector<char*> envp;
 	for (std::map<std::string, std::string>::iterator it = _env_vars.begin();
 			it != _env_vars.end();
@@ -166,17 +174,21 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	}
 	envp.push_back(nullptr);
 
+	// Get the CGI extension
 	const char* argv[3];
 	std::string cgi_ext = script_name.substr(script_name.find_last_of('.'));
 	if (cgi_ext == ".sh") {
+		// If the CGI extension is .sh, use the local path
 		std::string local_path = "./" + script_name;
 		argv[0] = local_path.c_str();
 		argv[1] = nullptr;
 		execve(argv[0], (char**)argv, envp.data());
 	}
+	// If the CGI extension is not .sh, try to find the interpreter in the locations
 	std::string resolved_path;
 	for (const auto &loc : _config.locations) {
 		if (loc.cgi_ext.has_value() && loc.cgi_ext.value() == cgi_ext && loc.cgi_path.has_value()) {
+			// Resolve the interpreter path
 			resolved_path = childResolvedInterpreterPath(loc.cgi_path.value(), _script_path);
 			argv[0] = resolved_path.c_str();
 			argv[1] = script_name.c_str();
@@ -187,7 +199,7 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 
 	// If execve returns, it failed
 	Logger::error("execve() failed for " + _script_path);
-	// Cleanup
+	// Cleanup the environment variables
 	for (size_t i = 0; i < envp.size(); ++i) {
 		free(envp[i]);
 	}
@@ -199,7 +211,6 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 //****************************************************//
 
 int	CGIexecutor::start() {
-
 	int		pipe_in[2];
 	int		pipe_out[2];
 
