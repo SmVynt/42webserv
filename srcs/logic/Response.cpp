@@ -10,6 +10,16 @@ void	Response::setBody(const std::string &body) { _body = body; }
 
 void	Response::addHeader(const std::string &key, const std::string &value) { _headers[key] = value; }
 
+void		Response::updateSentBytes(size_t sent) { _bytes_sent += sent; }
+
+int			Response::getStatusCode() const { return _status_code; }
+
+const char	*Response::getUnsentData() const { return _full_response.c_str() + _bytes_sent; }
+
+size_t		Response::getRemainingSize() const { return _full_response.size() - _bytes_sent; }
+
+bool		Response::isFinished() const { return !_full_response.empty() && _bytes_sent >= _full_response.size(); }
+
 void	Response::setConnectionHeader(bool keep_alive){
 	if (keep_alive)
 		addHeader("Connection", "keep-alive");
@@ -84,13 +94,3 @@ void Response::makeDefaultError(int code) {
 			"<hr><center>Webslave/1.0</center></body></html>";
 	addHeader("Content-Type", "text/html");
 }
-
-void		Response::updateSentBytes(size_t sent) { _bytes_sent += sent; }
-
-int			Response::getStatusCode() const { return _status_code; }
-
-const char	*Response::getUnsentData() const { return _full_response.c_str() + _bytes_sent; }
-
-size_t		Response::getRemainingSize() const { return _full_response.size() - _bytes_sent; }
-
-bool		Response::isFinished() const { return !_full_response.empty() && _bytes_sent >= _full_response.size(); }

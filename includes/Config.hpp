@@ -1,5 +1,4 @@
-#ifndef CONFIG_HPP
-# define CONFIG_HPP
+#pragma once
 
 #include <iostream>
 #include <fstream>
@@ -39,20 +38,52 @@ class Config {
 		std::vector<std::string> _tokens;
 		size_t _pos;
 
+		/**
+		 * @brief Parses a single `server` block from the token stream.
+		 * @return Parsed server configuration.
+		 */
 		ServerConfig	parseServer();
+
+		/**
+		 * @brief Parses a single `location` block from the token stream.
+		 * @return Parsed location configuration.
+		 */
 		Location		parseLocation();
+
+		/**
+		 * @brief Validates the final server configuration set.
+		 * @param servers Parsed server list to validate.
+		 */
 		void			validate(const std::vector<ServerConfig> &servers);
 
 	public:
+		/**
+		 * @brief Constructs a parser over already-tokenized configuration input.
+		 * @param tokens Token sequence produced from a config file.
+		 */
 		Config(const std::vector<std::string> &tokens);
-		Config(const Config &other);
-		Config &operator=(const Config &other);
+		
+		/**
+		 * @brief Destroys the configuration parser instance.
+		 */
 		~Config();
 
+		/**
+		 * @brief Parses all tokens into validated server configurations.
+		 * @return List of parsed `ServerConfig` entries.
+		 */
 		std::vector<ServerConfig> parse();
 };
 
+/**
+ * @brief Splits raw configuration text into parser tokens.
+ * @param content Full text content of the configuration file.
+ * @return Ordered list of lexical tokens.
+ */
 std::vector<std::string>	tokenize(const std::string &content);
-void						printConfig(const std::vector<ServerConfig> &servers);
-#endif
 
+/**
+ * @brief Prints parsed configuration for debugging/inspection.
+ * @param servers Parsed server configuration list to print.
+ */
+void						printConfig(const std::vector<ServerConfig> &servers);

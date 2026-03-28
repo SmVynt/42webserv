@@ -52,15 +52,6 @@ void printConfig(const std::vector<ServerConfig> &servers) {
 	std::cout << "========================================\n" << std::endl;
 }
 
-// void printTokens(const std::vector<std::string> &tokens) {
-// 	int i = 0;
-// 	for (std::vector<std::string>::const_iterator it = tokens.begin(); it != tokens.end(); ++it) {
-// 		const std::string &token = *it;
-// 		std::cout << "Token[" << i << "]: \t" << token << std::endl;
-// 		i++;
-// 	}
-// }
-
 std::string removeComments(const std::string &content) {
 	std::string result;
 	std::istringstream stream(content);
@@ -107,61 +98,3 @@ std::vector<std::string> tokenize(const std::string &filename) {
 	}
 	return tokens;
 }
-
-// void reqHardcode() {
-// 	Request request;
-
-// 	std::vector<std::string> chunks;
-
-// 	chunks.push_back("POST /upload/image.jpg HT");
-
-// 	chunks.push_back("TP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\n");
-
-// 	chunks.push_back("Hello World!");
-
-// 	std::cout << "--- Starting Simulation ---" << std::endl;
-
-// 	for (size_t i = 0; i < chunks.size(); ++i) {
-// 		std::cout << "\n>>> Receiving chunk " << i << "..." << std::endl;
-// 		request.consume(chunks[i]);
-
-// 		if (request.isFinished()) {
-// 			std::cout << "[SUCCESS] Request fully parsed!" << std::endl;
-// 		} else {
-// 			std::cout << "[WAITING] More data needed..." << std::endl;
-// 		}
-// 	}
-// 	std::cout << "\n--- Final Result ---" << std::endl;
-// 	std::cout << "Method:  " << request.getMethod() << std::endl;
-// 	std::cout << "Path:    " << request.getPath() << std::endl;
-// 	std::cout << "Version: " << request.getHttpVersion() << std::endl;
-// 	std::cout << "Body:    [" << request.getBody() << "]" << std::endl;
-// 	std::cout << "Headers count: " << request.getHeaders().size() << std::endl;
-
-// }
-
-// void reqChunkedHardcode() {
-// 	Request request;
-// 	std::vector<std::string> chunks;
-
-// 	chunks.push_back("POST /test HTTP/1.1\r\n");
-// 	chunks.push_back("Host: localhost\r\n");
-// 	chunks.push_back("Transfer-Encoding: chunked\r\n\r\n");
-
-// 	chunks.push_back("5\r\nHello\r\n");
-
-// 	chunks.push_back("7\r\n World!\r\n");
-
-// 	chunks.push_back("0\r\n\r\n");
-
-// 	for (const auto& c : chunks) {
-// 		request.consume(c);
-// 	}
-
-// 	std::cout << "\n--- Final Result ---" << std::endl;
-// 	std::cout << "Method:  " << request.getMethod() << std::endl;
-// 	std::cout << "Path:    " << request.getPath() << std::endl;
-// 	std::cout << "Version: " << request.getHttpVersion() << std::endl;
-// 	std::cout << "Body:    [" << request.getBody() << "]" << std::endl;
-// 	std::cout << "Headers count: " << request.getHeaders().size() << std::endl;
-// }

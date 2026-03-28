@@ -54,21 +54,15 @@ const Location *RequestHandler::findLocation(const std::string &uri, const Serve
 	for (size_t i = 0; i < config.locations.size(); i++) {
 		const Location &loc = config.locations[i];
 
-		// Check if path starts with .dot (extension-based location)
 		if (!loc.path.empty() && loc.path[0] == '.') {
-			// Extension-based location matching
 			size_t dot_pos = uri.find_last_of(".");
 			if (dot_pos != std::string::npos) {
 				std::string file_ext = uri.substr(dot_pos);
-				if (file_ext == loc.path) {
-					// Extension match found - store but don't return yet
-					// We'll return it only if method is allowed
+				if (file_ext == loc.path)
 					extension_match = &loc;
-				}
 			}
 		}
 		else if (uri.compare(0, loc.path.length(), loc.path) == 0) {
-			// Path-based location matching
 			if (loc.path.length() > max_len) {
 				max_len = loc.path.length();
 				best_match = &loc;
@@ -76,7 +70,6 @@ const Location *RequestHandler::findLocation(const std::string &uri, const Serve
 		}
 	}
 
-	// Return extension match if found, otherwise path match
 	return extension_match ? extension_match : best_match;
 }
 
@@ -86,7 +79,6 @@ const Location *RequestHandler::resolveLocation(const std::string &uri, const st
 	if (!loc)
 		return nullptr;
 
-	// Check if method is allowed for this location
 	bool method_allowed = false;
 	for (const auto& m : loc->methods) {
 		if (m == method) {
@@ -95,14 +87,12 @@ const Location *RequestHandler::resolveLocation(const std::string &uri, const st
 		}
 	}
 
-	// If extension-based location doesn't allow this method, find path-based location
 	if (!method_allowed && !loc->path.empty() && loc->path[0] == '.') {
 		const Location* fallback = nullptr;
 		size_t max_len = 0;
 
 		for (size_t i = 0; i < config.locations.size(); i++) {
 			const Location &candidate = config.locations[i];
-			// Only consider path-based locations (not extension-based)
 			if (candidate.path.empty() || candidate.path[0] == '.')
 				continue;
 
@@ -302,17 +292,13 @@ CGIexecutor *RequestHandler::handleCgi(const Request &req, const Location &loc, 
 	std::string script_uri = (query_pos == std::string::npos) ? full_path : full_path.substr(0, query_pos);
 	std::string query_string = (query_pos == std::string::npos) ? "" : full_path.substr(query_pos + 1);
 
-	// Handle extension-based locations differently
 	std::string script_path;
 	if (!loc.path.empty() && loc.path[0] == '.') {
-		// Extension-based location
-		// Check if there's a matching path-based location to use for path resolution
 		const Location* path_loc = nullptr;
 		size_t max_len = 0;
 
 		for (size_t i = 0; i < config.locations.size(); i++) {
 			const Location &candidate = config.locations[i];
-			// Only consider path-based locations
 			if (candidate.path.empty() || candidate.path[0] == '.')
 				continue;
 
@@ -324,17 +310,13 @@ CGIexecutor *RequestHandler::handleCgi(const Request &req, const Location &loc, 
 			}
 		}
 
-		// If we found a matching path-based location, use its root and path logic
-		if (path_loc) {
+		if (path_loc)
 			script_path = path_loc->root + script_uri.substr(path_loc->path.length());
-		} else {
-			// No matching path-based location, use extension location root with full path
+		else
 			script_path = loc.root + script_uri;
-		}
-	} else {
-		// Path-based location: strip the location path prefix
-		script_path = loc.root + script_uri.substr(loc.path.length());
 	}
+	else
+		script_path = loc.root + script_uri.substr(loc.path.length());
 
 	CGIconfig cgi_config(script_path, script_uri, query_string, config);
 	CGIexecutor *executor = new CGIexecutor(cgi_config);
@@ -346,7 +328,7 @@ CGIexecutor *RequestHandler::handleCgi(const Request &req, const Location &loc, 
 	executor->setEnvKey("REQUEST_METHOD", req.getMethod());
 	executor->setEnvKey("REMOTE_ADDR", req.getClientIP());
 	executor->setEnvKeySafe("REMOTE_HOST", req.getClientIP());
-	//if POST, set post data
+
 	if (req.getMethod() == "POST") {
 		executor->setPostDataSize(req.getBody().size());
 		std::string content_type = req.getHeaders("content-type");
@@ -426,7 +408,6 @@ Response RequestHandler::handlePost(const Request &req, const Location &loc){
 		res.setBody("Post data received. Size: " + std::to_string(req.getBody().size()));
 	}
 	else {
-		// res.setStatusCode(204);
 		res.setStatusCode(200);
 		res.setBody("Empty POST received.");
 	}
