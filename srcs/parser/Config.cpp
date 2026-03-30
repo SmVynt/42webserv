@@ -156,10 +156,14 @@ Location Config::parseLocation() {
 			loc.cgi_ext = _tokens[_pos++];
 		}
 		else if (key == "return") {
-			if (_pos >= _tokens.size())
-				throw std::runtime_error("Missing return value");
+			if (_pos + 1 >= _tokens.size())
+				throw std::runtime_error("Missing return value (expected: return <3xx_code> <url>)");
 			int code = std::stoi(_tokens[_pos++]);
 			std::string url = _tokens[_pos++];
+			if (code < 300 || code > 399)
+				throw std::runtime_error("Invalid return code: must be a 3xx status");
+			if (url.empty())
+				throw std::runtime_error("Invalid return URL: value cannot be empty");
 			loc.redirection = {code, url};
 		}
 		else if (key == "client_max_body_size") {

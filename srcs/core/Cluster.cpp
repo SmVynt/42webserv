@@ -671,11 +671,8 @@ void Cluster::handleStaticRequest(int fd, FDMetadata& data, const ServerConfig& 
 	data.client_state = STATE_PROCESSING;
 	data.response = RequestHandler::handleRequest(data.request, config);
 	Logger::info("Status code: " + std::to_string(data.response.getStatusCode()));
-	if (data.response.getStatusCode() != 200 && data.response.getStatusCode() != 201)
+	if (data.response.getStatusCode() >= 400)
 		data.response = generateErrorResponse(data.response.getStatusCode(), data.config_index);
-	// RFC 7231 §4.3.2: HEAD response must have no body but keep Content-Length
-	if (data.request.getMethod() == "HEAD")
-		data.response.setBody("");
 	if (data.is_new_session)
 		data.response.addHeader("Set-Cookie", "session_id=" + data.session_id + "; Path=/");
 	data.response.prepare();

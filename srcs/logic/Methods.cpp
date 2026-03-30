@@ -220,6 +220,8 @@ Response RequestHandler::handleRequest(Request &req, const ServerConfig &config)
 
 	bool keep_alive = req.shouldKeepAlive();
 	res.setConnectionHeader(keep_alive);
+	if (req.getMethod() == "HEAD")
+		res.setBody("");
 
 	return res;
 }
