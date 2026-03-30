@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hub.hpp"
+#include "Logger.hpp"
 
 struct Location {
 	std::string path;
@@ -44,8 +45,13 @@ class Config {
 		Location		parseLocation();
 
 		/**
-		 * @brief Validates the final server configuration set.
+		 * @brief Rejects ambiguous virtual-host definitions for the same listen socket.
+		 * @details Multiple `server` blocks may share the same `host:port` (one bind) if
+		 *          `server_name` values do not overlap. Duplicate names, duplicate empty
+		 *          `server_name` pairs for the same listen, or repeated names in one block
+		 *          throw `std::runtime_error`.
 		 * @param servers Parsed server list to validate.
+		 * @note Listen host is normalized like `Cluster::setupCluster` (empty -> `0.0.0.0`).
 		 */
 		void			validate(const std::vector<ServerConfig> &servers);
 

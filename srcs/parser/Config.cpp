@@ -4,6 +4,49 @@ Config::Config(const std::vector<std::string> &tokens): _tokens(tokens), _pos(0)
 
 Config::~Config() {}
 
+static std::string	normalizedListenHost(const ServerConfig& c)
+{
+	return c.host.empty() ? "0.0.0.0" : c.host;
+}
+
+void Config::validate(const std::vector<ServerConfig>& servers)
+{
+	for (size_t i = 0; i < servers.size(); ++i)
+	{
+		const ServerConfig& a = servers[i];
+		{
+			std::set<std::string> uniq(a.server_names.begin(), a.server_names.end());
+			if (uniq.size() != a.server_names.size())
+				throw std::runtime_error("Duplicate server_name in a single server block");
+		}
+
+		const std::string host_a = normalizedListenHost(a);
+		const int port_a = a.port;
+
+		for (size_t j = i + 1; j < servers.size(); ++j)
+		{
+			const ServerConfig& b = servers[j];
+			if (host_a != normalizedListenHost(b) || port_a != b.port)
+				continue;
+
+			if (a.server_names.empty() && b.server_names.empty())
+				throw std::runtime_error(
+					"Ambiguous configuration: multiple server blocks for " + host_a + ":" +
+					std::to_string(port_a) + " with no server_name");
+
+			for (const auto& name : a.server_names)
+			{
+				for (const auto& name_b : b.server_names)
+				{
+					if (name == name_b)
+						throw std::runtime_error("Ambiguous configuration: server_name \"" + name +
+							"\" is defined twice for " + host_a + ":" + std::to_string(port_a));
+				}
+			}
+		}
+	}
+}
+
 std::vector<ServerConfig> Config::parse(){
 	std::vector<ServerConfig> servers;
 	while(_pos < _tokens.size()){
@@ -12,6 +55,7 @@ std::vector<ServerConfig> Config::parse(){
 		else
 			throw std::runtime_error("Unknown global token: " + _tokens[_pos]);
 	}
+	validate(servers);
 	return servers;
 }
 

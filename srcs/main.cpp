@@ -5,6 +5,7 @@
 
 int main(int argc, char **argv) {
 	srand (time(NULL));
+	Logger::setLogLevel(LogLevel::INFO);
 	if (argc > 2) {
 		std::cerr << "Usage: " << argv[0] << " [config_file]" << std::endl;
 		return 1;
@@ -14,8 +15,6 @@ int main(int argc, char **argv) {
 		Config parser(tokens);
 		std::vector<ServerConfig> servers = parser.parse();
 		printConfig(servers);
-
-		Logger::setLogLevel(LogLevel::INFO);
 
 		Cluster webserv(servers);
 		cluster_reference() = &webserv;
@@ -31,7 +30,7 @@ int main(int argc, char **argv) {
 		cluster_reference() = nullptr;
 
 	} catch(std::exception &e){
-		std::cout << e.what() << std::endl;
+		Logger::error(e.what());
 	}
 	return 0;
 }
