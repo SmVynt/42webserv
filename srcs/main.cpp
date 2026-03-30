@@ -14,8 +14,6 @@ int main(int argc, char **argv) {
 		Config parser(tokens);
 		std::vector<ServerConfig> servers = parser.parse();
 		printConfig(servers);
-		// reqHardcode();
-		// reqChunkedHardcode();
 
 		Logger::setLogLevel(LogLevel::INFO);
 
