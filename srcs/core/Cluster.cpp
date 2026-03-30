@@ -670,7 +670,7 @@ void Cluster::handleStaticRequest(int fd, FDMetadata& data, const ServerConfig& 
 {
 	data.client_state = STATE_PROCESSING;
 	data.response = RequestHandler::handleRequest(data.request, config);
-	Logger::info("Status code: " + std::to_string(data.response.getStatusCode()));
+	// Logger::info("Status code: " + std::to_string(data.response.getStatusCode()));
 	if (data.response.getStatusCode() >= 400)
 		data.response = generateErrorResponse(data.response.getStatusCode(), data.config_index);
 	if (data.is_new_session)
@@ -764,6 +764,7 @@ bool Cluster::handleClientResponse(int fd)
 		data.response.updateSentBytes(static_cast<size_t>(bytes_sent));
 		if (data.response.isFinished()){
 			Logger::info("Response sent successfully [FD " + std::to_string(fd) + "]");
+			Logger::debug("Status code: " + std::to_string(data.response.getStatusCode()));
 			if (data.request.shouldKeepAlive()){
 				resetConnection(fd);
 				return false;
