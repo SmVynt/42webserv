@@ -1,11 +1,11 @@
 #pragma once
 
+#include "hub.hpp"
+
 #include "Response.hpp"
 #include "Request.hpp"
 #include "CGI.hpp"
 #include "utils.hpp"
-#include <filesystem>
-#include <unistd.h>
 
 class CGIexecutor;
 
@@ -119,7 +119,7 @@ class RequestHandler{
 		 * @return Started CGI executor pointer, or `NULL` on failure.
 		 */
 		static CGIexecutor		*handleCgi(const Request &req, const Location &loc, const ServerConfig &config);
-		
+
 		/**
 		 * @brief Parses raw CGI output into an HTTP response.
 		 * @param raw_output Raw CGI stdout payload.

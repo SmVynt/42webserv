@@ -1,11 +1,8 @@
-#ifndef UTILS_HPP
-# define UTILS_HPP
+#pragma once
 
-# include <filesystem>
-# include <fstream>
-# include <iostream>
-# include <unistd.h>
-# include "Logger.hpp"
+#include "hub.hpp"
+
+#include "Logger.hpp"
 
 std::string	loadFile(const std::string &path);
 /**
@@ -23,5 +20,3 @@ std::string	urlDecode(const std::string &str);
  * Safely closes a file descriptor and sets it to -1 to prevent accidental reuse.
  */
 void		safeClose(int &fd);
-
-#endif

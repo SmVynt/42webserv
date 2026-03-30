@@ -1,8 +1,7 @@
-#ifndef RESMONITOR_HPP
-# define RESMONITOR_HPP
+#pragma once
 
-# include <sys/resource.h>
-# include <cstring>
+#include "hub.hpp"
+
 # include "Logger.hpp"
 
 class ResMonitor {
@@ -12,5 +11,3 @@ class ResMonitor {
 		static size_t	getMaxFDAmount();
 		static size_t	getOpenFDAmount();
 };
-
-#endif

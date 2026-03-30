@@ -1,10 +1,10 @@
 #pragma once
 
-# include "Request.hpp"
-# include "Config.hpp"
+#include "hub.hpp"
 
-#include <sys/types.h>
-#include <sys/socket.h>
+#include "Request.hpp"
+#include "Config.hpp"
+
 
 class Response {
 private:
@@ -35,7 +35,7 @@ public:
 	 * @brief Constructs a response object with default HTTP state.
 	 */
 	Response();
-	
+
 	/**
 	 * @brief Destroys the response object.
 	 */

@@ -1,27 +1,15 @@
 #pragma once
-#include <poll.h>
-#include <vector>
-#include <string>
-#include <map>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <fcntl.h>
-#include <cstring>
-#include <filesystem>
-#include "Config.hpp"
-#include <algorithm>
+
+#include "hub.hpp"
+
 #include "Request.hpp"
 #include "Response.hpp"
 #include "utils.hpp"
 #include "Logger.hpp"
 #include "Methods.hpp"
-#include <csignal>
 #include "CGI.hpp"
 #include "Session.hpp"
+#include "Config.hpp"
 
 /**
  * @enum FDType

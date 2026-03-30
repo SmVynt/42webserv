@@ -1,13 +1,6 @@
 #pragma once
 
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <optional>
-#include <map>
-#include <set>
-#include <filesystem>
+#include "hub.hpp"
 
 struct Location {
 	std::string path;
@@ -62,7 +55,7 @@ class Config {
 		 * @param tokens Token sequence produced from a config file.
 		 */
 		Config(const std::vector<std::string> &tokens);
-		
+
 		/**
 		 * @brief Destroys the configuration parser instance.
 		 */

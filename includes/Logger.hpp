@@ -1,9 +1,6 @@
-#ifndef LOGGER_HPP
-# define LOGGER_HPP
+#pragma once
 
-# include <iostream>
-# include <cstring>
-# include <ctime>
+#include "hub.hpp"
 
 enum LogLevel {
 	DEBUG,
@@ -32,5 +29,3 @@ class Logger {
 
 		static int	log(LogLevel level, const std::string &message);
 };
-
-#endif

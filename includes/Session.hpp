@@ -1,10 +1,8 @@
-#ifndef SESSION_HPP
-# define SESSION_HPP
+#pragma once
 
-# include <string>
-# include <fstream>
-# include <time.h>
-# include "Logger.hpp"
+#include "hub.hpp"
+
+#include "Logger.hpp"
 
 class Session {
 	public:
@@ -23,7 +21,3 @@ class Session {
 		time_t		_created_at;
 		time_t		_last_accessed;
 };
-
-
-#endif
-

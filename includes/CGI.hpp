@@ -1,22 +1,11 @@
-#ifndef CGI_HPP
-# define CGI_HPP
+#pragma once
 
-# include <iostream>
-# include <cstring>
-# include <cerrno>
-# include <vector>
-# include <map>
-# include <unistd.h>
-# include <sys/wait.h> 
-# include <signal.h>
-# include <poll.h>
-# include <fcntl.h>
-# include <ctime>
+#include "hub.hpp"
 
-# include "cgiUtils.hpp"
-# include "cgiError.hpp"
-# include "Logger.hpp"
-# include "Config.hpp"
+#include "cgiError.hpp"
+#include "Config.hpp"
+#include "cgiUtils.hpp"
+#include "Logger.hpp"
 
 /**
  * @brief Immutable input bundle used to construct a CGI executor.
@@ -90,7 +79,7 @@ class CGIexecutor {
 		 * @brief Detaches a pipe FD from executor ownership.
 		 */
 		void			detachPipeFd(int fd);
-		
+
 	private:
 		std::string							_script_path;
 		std::string							_request_uri;
@@ -111,7 +100,7 @@ class CGIexecutor {
 		 * @brief Validates script availability/executability in child.
 		 */
 		void		childCheckCgiPath();
-		
+
 		/**
 		 * @brief Wires CGI stdin/stdout to pipes in child process.
 		 */
@@ -133,5 +122,3 @@ class CGIexecutor {
 		 */
 		void		setupEnvironment();
 };
-
-#endif

@@ -1,7 +1,6 @@
-#ifndef CGIERROR_HPP
-# define CGIERROR_HPP
+#pragma once
 
-# include <string>
+#include <string>
 
 /**
  * @brief Maps CGI internal failures to HTTP status and process exit codes.
@@ -28,7 +27,7 @@ class CGIError{
 		 * @brief Converts CGI error type to HTTP status code.
 		 */
 		static int			getStatusCode(Type errorType);
-		
+
 		/**
 		 * @brief Returns a human-readable message for a CGI error type.
 		 */
@@ -44,5 +43,3 @@ class CGIError{
 		 */
 		static int 			getExitFromError(Type errorType);
 };
-
-#endif
