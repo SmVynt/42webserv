@@ -11,8 +11,6 @@ class ResMonitor {
 	public:
 		static size_t	getMaxFDAmount();
 		static size_t	getOpenFDAmount();
-		// static size_t	getAvailableFDAmount();
-		// static bool		isApproachingLimit();
 };
 
 #endif
