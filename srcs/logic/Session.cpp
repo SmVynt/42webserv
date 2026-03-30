@@ -25,12 +25,11 @@ std::string	Session::generateSessionId() {
 	const size_t	max_index = sizeof(charset) - 1;
 	std::string		sessionId;
 
-	unsigned char buf[32];
-	std::ifstream urandom("/dev/urandom", std::ios::binary);
-	urandom.read(reinterpret_cast<char*>(buf), sizeof(buf));
-
+	// unsigned char buf[32];
+	// std::ifstream urandom("/dev/urandom", std::ios::binary);
+	// urandom.read(reinterpret_cast<char*>(buf), sizeof(buf));
 	for (size_t i = 0; i < 32; i++){
-		sessionId += charset[buf[i] % max_index];
+		sessionId += charset[rand() % max_index];
 	}
 	return sessionId;
 }

@@ -764,7 +764,7 @@ bool Cluster::handleClientResponse(int fd)
 		data.response.updateSentBytes(static_cast<size_t>(bytes_sent));
 		if (data.response.isFinished()){
 			Logger::info("Response sent successfully [FD " + std::to_string(fd) + "]");
-			Logger::debug("Status code: " + std::to_string(data.response.getStatusCode()));
+			Logger::info("Status code: " + std::to_string(data.response.getStatusCode()));
 			if (data.request.shouldKeepAlive()){
 				resetConnection(fd);
 				return false;
