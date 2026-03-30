@@ -79,6 +79,11 @@ void	CGIexecutor::setEnvKeySafe(const std::string &key, const std::string &value
 }
 
 void	CGIexecutor::setupEnvironment() {
+	std::string script_filename = _script_path;
+	try {
+		script_filename = std::filesystem::absolute(_script_path).lexically_normal().string();
+	} catch (...) {}
+
 	// Set mandatory environment variables
 	_env_vars["GATEWAY_INTERFACE"] = "CGI/1.1";
 	_env_vars["SERVER_PROTOCOL"] = "HTTP/1.1";
@@ -87,13 +92,13 @@ void	CGIexecutor::setupEnvironment() {
 	_env_vars["QUERY_STRING"] = _query_string;
 
 	setEnvKey("SERVER_NAME", _config.server_names.empty() ? "localhost" : _config.server_names[0]);
-	setEnvKey("SERVER_PORT", _config.port > 0? std::to_string(_config.port) : "8080");
+	setEnvKey("SERVER_PORT", _config.port > 0 ? std::to_string(_config.port) : "8080");
 	_env_vars["REQUEST_URI"] = _request_uri;
 	_env_vars["PATH_INFO"] = _request_uri;
-	_env_vars["PATH_TRANSLATED"] = _script_path;
+	_env_vars["PATH_TRANSLATED"] = script_filename;
 	_env_vars["SCRIPT_NAME"] = "";
 
-	_env_vars["SCRIPT_FILENAME"] = _script_path;
+	_env_vars["SCRIPT_FILENAME"] = script_filename;
 
 	_env_vars["AUTH_TYPE"] = "";
 	_env_vars["REMOTE_IDENT"] = "";
@@ -206,7 +211,7 @@ void	CGIexecutor::runChild(int pipe_in[2], int pipe_out[2]) {
 	for (size_t i = 0; i < envp.size(); ++i) {
 		free(envp[i]);
 	}
-	exit(1);
+	exit(CGIError::getExitFromError(CGIError::EXEC_FAILED));
 }
 
 //****************************************************//

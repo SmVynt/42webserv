@@ -405,8 +405,6 @@ void Cluster::acceptNewConnection(int listen_fd)
 	getnameinfo(reinterpret_cast<struct sockaddr*>(&client_addr), client_len,
 				ip_str, sizeof(ip_str), nullptr, 0, NI_NUMERICHOST);
 	data.request.setClientIP(ip_str);
-
-	std::cout << "New client connected: FD " << client_fd << std::endl;
 }
 
 std::vector<int> Cluster::collectCgiPipes(int client_fd)
@@ -672,7 +670,7 @@ void Cluster::handleStaticRequest(int fd, FDMetadata& data, const ServerConfig& 
 {
 	data.client_state = STATE_PROCESSING;
 	data.response = RequestHandler::handleRequest(data.request, config);
-	Logger::warning("Status code" + std::to_string(data.response.getStatusCode()));
+	Logger::info("Status code: " + std::to_string(data.response.getStatusCode()));
 	if (data.response.getStatusCode() != 200 && data.response.getStatusCode() != 201)
 		data.response = generateErrorResponse(data.response.getStatusCode(), data.config_index);
 	// RFC 7231 §4.3.2: HEAD response must have no body but keep Content-Length
